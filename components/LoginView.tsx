@@ -13,10 +13,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onSuccess, onBack }) => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'zuperzimmermann' && password === 'GoGigi1') {
+    if (username === 'gogigi' && password === 'GoGigi1') {
       onSuccess();
     } else {
-      setError('Invalid credentials. Hint: admin/admin');
+      setError('Invalid credentials.');
     }
   };
 
