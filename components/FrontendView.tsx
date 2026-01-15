@@ -9,7 +9,6 @@ const CountdownTimer = () => {
   useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date();
-      // Bepaal middernacht voor de volgende dag
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0); 
@@ -38,7 +37,6 @@ const CountdownTimer = () => {
     </div>
   );
 };
-// ---------------------------------------
 
 interface FrontendViewProps {
   quiz: Quiz;
@@ -57,12 +55,27 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
 
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
 
+  // --- NIEUW: CHECK OF ER AL GESPEELD IS VANDAAG ---
   useEffect(() => {
-    // Eventuele dagelijkse reset logica kan hier
+    const today = new Date().toISOString().split('T')[0];
+    const lastDate = localStorage.getItem('last_played_date');
+
+    // Als de datum van vandaag overeenkomt met de laatst gespeelde datum
+    if (lastDate === today) {
+        // Haal de oude gegevens op
+        const savedScore = localStorage.getItem('last_played_score');
+        const savedSelection = localStorage.getItem('last_played_selection');
+
+        if (savedScore && savedSelection) {
+            setScore(parseInt(savedScore));
+            setSelectedIds(JSON.parse(savedSelection));
+            setIsSubmitted(true); // Blokkeer het spel direct
+        }
+    }
   }, []);
 
   const toggleSelect = (id: string) => {
-    if (isSubmitted) return;
+    if (isSubmitted) return; // Je mag niet klikken als je al klaar bent
     setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
@@ -80,13 +93,17 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
     setIsSubmitted(true);
     updateStats(currentScore);
     
-    localStorage.setItem('last_played_date', new Date().toISOString().split('T')[0]);
+    // --- NIEUW: SLA ALLES OP VOOR VANDAAG ---
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem('last_played_date', today);
+    localStorage.setItem('last_played_score', currentScore.toString());
+    localStorage.setItem('last_played_selection', JSON.stringify(selectedIds)); // Sla de keuzes op
+    
     createCelebration();
   };
 
   const handleShare = () => {
-    // Pakt automatisch de link waar je nu bent (localhost of straks je echte site)
-    const shareUrl = window.location.origin; 
+    const shareUrl = "https://cyclingimposter.com"; // Hier zetten we nu hard de echte URL
     const text = `🚴 Cycling Imposter\n🏆 Score: ${score}/8\n🔥 Streak: ${userStats.streak}\n\nCan you spot the fake riders?\n👉 Play at: ${shareUrl}`;
     
     navigator.clipboard.writeText(text).then(() => {
@@ -351,35 +368,35 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
           )}
 
           {/* --- DE ECHTE FOOTER (Altijd zichtbaar) --- */}
-<div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
-  
-  <p className="text-xs text-gray-500 opacity-80">
-    Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span>
-  </p>
+          <div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
+            
+            <p className="text-xs text-gray-500 opacity-80">
+              Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span>
+            </p>
 
-  <div className="flex gap-4 text-xs text-gray-400">
-    <a 
-      href="https://www.instagram.com/georgzimmermann_fa/" 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="hover:text-primary transition-colors hover:underline"
-    >
-      Instagram
-    </a>
-    <span>•</span>
-    <a 
-      href="mailto:hello@cyclingimposter.com" 
-      className="hover:text-primary transition-colors hover:underline"
-    >
-      Contact & Bugs
-    </a>
-  </div>
+            <div className="flex gap-4 text-xs text-gray-400">
+              <a 
+                href="https://www.instagram.com/georgzimmermann_fa/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-primary transition-colors hover:underline"
+              >
+                Instagram
+              </a>
+              <span>•</span>
+              <a 
+                href="mailto:hello@cyclingimposter.com" 
+                className="hover:text-primary transition-colors hover:underline"
+              >
+                Contact & Bugs
+              </a>
+            </div>
 
-  <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
-      <span className="material-symbols-outlined text-[12px]">lock</span> Admin
-  </button>
+            <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
+                <span className="material-symbols-outlined text-[12px]">lock</span> Admin
+            </button>
 
-</div>
+          </div>
         </div>
       </main>
 
