@@ -295,39 +295,9 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
                     <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
                     <p className="text-gray-400 mb-6">{score === 8 ? "Perfect Score!" : "Good job!"}</p>
 
-                    {/* --- NIEUWE FOOTER --- */}
-          <div className="mt-16 mb-8 flex flex-col items-center gap-4 text-center w-full">
-            
-            {/* Community Regel */}
-            <p className="text-xs text-gray-500">
-              Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span>
-            </p>
-
-            {/* Linkjes */}
-            <div className="flex gap-4 text-xs text-gray-400">
-              <a 
-                href="https://www.instagram.com/georgzimmermann_fa/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-primary transition-colors hover:underline"
-              >
-                Instagram
-              </a>
-              <span>•</span>
-              <a 
-                href="mailto:hello@cyclingimposter.com" 
-                className="hover:text-primary transition-colors hover:underline"
-              >
-                Contact & Bugs
-              </a>
-            </div>
-
-            {/* Oude Admin knop (nu subtieler onderaan) */}
-            <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
-                <span className="material-symbols-outlined text-[12px]">lock</span> Admin
-            </button>
-
-          </div>
+                    <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
+                        <span className="material-symbols-outlined">share</span> Share Result
+                    </button>
                     
                     {/* STATS */}
                     <div className="grid grid-cols-2 gap-4 border-t border-[#22492f] py-6">
@@ -380,9 +350,36 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
             </div>
           )}
 
-          <button onClick={onGoAdmin} className="mt-16 text-xs font-medium text-gray-600 hover:text-primary transition-colors flex items-center justify-center gap-1 opacity-60 hover:opacity-100 mx-auto">
-            <span className="material-symbols-outlined text-sm">lock</span> Admin Access
-          </button>
+          {/* --- DE ECHTE FOOTER (Altijd zichtbaar) --- */}
+<div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
+  
+  <p className="text-xs text-gray-500 opacity-80">
+    Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span>
+  </p>
+
+  <div className="flex gap-4 text-xs text-gray-400">
+    <a 
+      href="https://www.instagram.com/georgzimmermann_fa/" 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="hover:text-primary transition-colors hover:underline"
+    >
+      Instagram
+    </a>
+    <span>•</span>
+    <a 
+      href="mailto:hello@cyclingimposter.com" 
+      className="hover:text-primary transition-colors hover:underline"
+    >
+      Contact & Bugs
+    </a>
+  </div>
+
+  <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
+      <span className="material-symbols-outlined text-[12px]">lock</span> Admin
+  </button>
+
+</div>
         </div>
       </main>
 
