@@ -1,91 +1,23 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
     
-    <title>Cycling Imposter - Daily Challenge</title>
-    <meta name="description" content="Test your cycling knowledge! Can you spot the imposters in today's peloton? Play the daily challenge now.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚴</text></svg>">
     
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="🚴 Cycling Imposter">
-    <meta property="og:description" content="Can you spot the fake riders? Play the daily challenge now!">
-    <meta property="og:image" content="https://placehold.co/1200x630/102316/22c55e?text=Cycling+Imposter"> 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
 
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="🚴 Cycling Imposter">
-    <meta property="twitter:description" content="Can you spot the fake riders? Play the daily challenge now!">
-    <meta property="twitter:image" content="https://placehold.co/1200x630/102316/22c55e?text=Cycling+Imposter">
-    <link href="https://fonts.googleapis.com" rel="preconnect"/>
-    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;700;800;900&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              "primary": "#0df259",
-              "primary-dark": "#0bc448",
-              "background-light": "#f5f8f6",
-              "background-dark": "#102216",
-              "card-dark": "#1a3322",
-              "surface-dark": "#183320",
-              "input-dark": "#22492f",
-              "border-dark": "#2e5239",
-              "text-muted": "#90cba4",
-            },
-            fontFamily: {
-              "display": ["Lexend", "sans-serif"],
-              "body": ["Noto Sans", "sans-serif"],
-            },
-            borderRadius: {
-              "DEFAULT": "1rem", 
-              "lg": "1.5rem", 
-              "xl": "2rem", 
-              "2xl": "3rem",
-              "full": "9999px"
-            },
-            boxShadow: {
-              "neon": "0 0 10px rgba(13, 242, 89, 0.3)",
-              "neon-strong": "0 0 20px rgba(13, 242, 89, 0.5)",
-            }
-          },
-        },
-      }
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cycling Imposter | The Daily Challenge</title>
+    <meta name="description" content="Test your cycling knowledge. Spot the imposter among the riders." />
     <style>
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #102216; }
-        ::-webkit-scrollbar-thumb { background: #22492f; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #0df259; }
-
-        /* Animation class behouden voor de zekerheid */
-        .celebration-emoji {
-            position: absolute;
-            opacity: 0; 
-            pointer-events: none;
-            z-index: 100;
-        }
+       body { background-color: #050b07; margin: 0; }
     </style>
-    
-    <script type="importmap">
-    {
-      "imports": {
-        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "react": "https://esm.sh/react@^19.2.3"
-      }
-    }
-    </script>
-    
-    </head>
-<body class="bg-background-dark text-white font-display antialiased selection:bg-primary selection:text-background-dark">
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>
