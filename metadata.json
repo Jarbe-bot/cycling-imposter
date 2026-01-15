@@ -1,0 +1,6 @@
+
+{
+  "name": "Cycling Imposter",
+  "description": "A daily cycling trivia game where players identify 'imposters' who don't fit a specific cycling achievement. Includes a full administrative backend for quiz curation.",
+  "requestFramePermissions": []
+}
