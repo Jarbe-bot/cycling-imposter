@@ -9,11 +9,14 @@ import AdminDatabase from './components/AdminDatabase';
 import LoginView from './components/LoginView';
 
 const AppContent: React.FC = () => {
-  // We beginnen met de standaard data (zodat de app nooit leeg is)
+  // We beginnen met de standaard data
   const [cyclists, setCyclists] = useState<Cyclist[]>(INITIAL_CYCLISTS);
   const [quiz, setQuiz] = useState<Quiz>(INITIAL_QUIZ);
   
-  // STATS: Laad uit localStorage (geheugen van de browser)
+  // NIEUW: Een 'Laad-status' om te voorkomen dat we halve data tonen
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // STATS: Laad uit localStorage
   const [userStats, setUserStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('cycling_imposter_stats');
     return saved ? JSON.parse(saved) : {
@@ -31,39 +34,44 @@ const AppContent: React.FC = () => {
   }, []);
 
   const fetchLiveData = async () => {
-    console.log("🔄 Checking for live updates...");
+    console.log("🔄 Warming up engines...");
+    setIsLoading(true); // Zeker weten dat we laden
 
-    // STAP 1: Haal ALLE renners op (zodat we de juiste foto's hebben)
-    const { data: cyclistData } = await supabase.from('cyclists').select('*');
-    
-    if (cyclistData && cyclistData.length > 0) {
-        // Zorg dat image_url (database) gemapt wordt naar imageUrl (app)
-        const formattedCyclists = cyclistData.map((c: any) => ({
-            ...c,
-            imageUrl: c.image_url || c.imageUrl
-        }));
-        setCyclists(formattedCyclists);
-    }
+    try {
+        // STAP 1: Haal ALLE renners op
+        const { data: cyclistData } = await supabase.from('cyclists').select('*');
+        
+        if (cyclistData && cyclistData.length > 0) {
+            const formattedCyclists = cyclistData.map((c: any) => ({
+                ...c,
+                imageUrl: c.image_url || c.imageUrl
+            }));
+            setCyclists(formattedCyclists);
+        }
 
-    // STAP 2: Haal de Quiz van VANDAAG op
-    const today = new Date().toISOString().split('T')[0]; // Format: 2024-05-21
-    
-    const { data: quizData, error } = await supabase
-        .from('daily_quizzes')
-        .select('*')
-        .eq('date', today)
-        .single(); // .single() betekent: we verwachten max 1 resultaat
+        // STAP 2: Haal de Quiz van VANDAAG op
+        const today = new Date().toISOString().split('T')[0];
+        
+        const { data: quizData } = await supabase
+            .from('daily_quizzes')
+            .select('*')
+            .eq('date', today)
+            .single();
 
-    if (quizData) {
-        console.log("✅ Live quiz found for today!", quizData);
-        setQuiz({
-            id: quizData.id,
-            statement: quizData.statement,
-            slots: quizData.slots // Dit komt als JSON uit de DB en past direct in ons type
-        });
-    } else {
-        console.log("ℹ️ No live quiz found for today (" + today + "), using default/fallback.");
-        // Hier zou je eventueel een melding kunnen tonen of een 'random' quiz genereren
+        if (quizData) {
+            console.log("✅ Live quiz found for today!");
+            setQuiz({
+                id: quizData.id,
+                statement: quizData.statement,
+                slots: quizData.slots
+            });
+        }
+    } catch (error) {
+        console.error("Oeps, foutje met laden:", error);
+    } finally {
+        // BELANGRIJK: Dit gebeurt ALTIJD als alles klaar is (of gefaald)
+        // Hier zetten we het licht op groen en tonen we de app.
+        setTimeout(() => setIsLoading(false), 800); // Kleine kunstmatige vertraging voor soepele animatie
     }
   };
 
@@ -82,21 +90,33 @@ const AppContent: React.FC = () => {
     });
   };
 
+  // NIEUW: HET LAADSCHERM 🚴‍♂️💨
+  if (isLoading) {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a160e] text-primary">
+            <div className="flex flex-col items-center animate-pulse gap-4">
+                <span className="material-symbols-outlined text-6xl spin-slow">directions_bike</span>
+                <h2 className="text-xl font-bold tracking-widest text-white">LOADING STAGE...</h2>
+                <p className="text-xs text-gray-500">Inflating tires & checking brakes</p>
+            </div>
+        </div>
+    );
+  }
+
+  // DE ECHTE APP (Wordt pas getoond als isLoading false is)
   return (
     <div className="min-h-screen flex flex-col bg-background-dark text-white">
       <Routes>
-        {/* HOME: De Quiz */}
         <Route path="/" element={
           <FrontendView 
-  quiz={quiz} 
-  cyclists={cyclists} // <--- DIT IS DE BELANGRIJKE WIJZIGING
-  userStats={userStats} 
-  updateStats={updateUserStats} 
-  onGoAdmin={() => navigate('/login')} 
-/>
+            quiz={quiz} 
+            cyclists={cyclists} 
+            userStats={userStats} 
+            updateStats={updateUserStats} 
+            onGoAdmin={() => navigate('/login')} 
+          />
         } />
 
-        {/* LOGIN */}
         <Route path="/login" element={
           <LoginView 
             onSuccess={() => navigate('/admin/dashboard')} 
@@ -104,7 +124,6 @@ const AppContent: React.FC = () => {
           />
         } />
 
-        {/* ADMIN DASHBOARD (Kalender & Quiz Maken) */}
         <Route path="/admin/dashboard" element={
           <AdminDashboard 
             quiz={quiz} 
@@ -115,7 +134,6 @@ const AppContent: React.FC = () => {
           />
         } />
         
-        {/* ADMIN DATABASE (Renners beheren) */}
         <Route path="/admin/database" element={
           <AdminDatabase 
             cyclists={cyclists} 
