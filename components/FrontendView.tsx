@@ -52,30 +52,29 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
   const [score, setScore] = useState(0);
   
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false); // <--- NIEUW: State voor de regels
 
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
 
-  // --- NIEUW: CHECK OF ER AL GESPEELD IS VANDAAG ---
+  // --- CHECK OF ER AL GESPEELD IS VANDAAG ---
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     const lastDate = localStorage.getItem('last_played_date');
 
-    // Als de datum van vandaag overeenkomt met de laatst gespeelde datum
     if (lastDate === today) {
-        // Haal de oude gegevens op
         const savedScore = localStorage.getItem('last_played_score');
         const savedSelection = localStorage.getItem('last_played_selection');
 
         if (savedScore && savedSelection) {
             setScore(parseInt(savedScore));
             setSelectedIds(JSON.parse(savedSelection));
-            setIsSubmitted(true); // Blokkeer het spel direct
+            setIsSubmitted(true);
         }
     }
   }, []);
 
   const toggleSelect = (id: string) => {
-    if (isSubmitted) return; // Je mag niet klikken als je al klaar bent
+    if (isSubmitted) return;
     setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
@@ -93,22 +92,33 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
     setIsSubmitted(true);
     updateStats(currentScore);
     
-    // --- NIEUW: SLA ALLES OP VOOR VANDAAG ---
     const today = new Date().toISOString().split('T')[0];
     localStorage.setItem('last_played_date', today);
     localStorage.setItem('last_played_score', currentScore.toString());
-    localStorage.setItem('last_played_selection', JSON.stringify(selectedIds)); // Sla de keuzes op
+    localStorage.setItem('last_played_selection', JSON.stringify(selectedIds));
     
     createCelebration();
   };
 
-  const handleShare = () => {
-    const shareUrl = "https://cyclingimposter.com"; // Hier zetten we nu hard de echte URL
+  const handleShare = async () => {
+    const shareUrl = "https://cyclingimposter.com";
     const text = `🚴 Cycling Imposter\n🏆 Score: ${score}/8\n🔥 Streak: ${userStats.streak}\n\nCan you spot the fake riders?\n👉 Play at: ${shareUrl}`;
     
-    navigator.clipboard.writeText(text).then(() => {
+    if (navigator.share) {
+        try {
+            await navigator.share({ text: text });
+            return;
+        } catch (err) {
+            console.log("Share cancelled or failed", err);
+        }
+    }
+
+    try {
+        await navigator.clipboard.writeText(text);
         alert("Result copied to clipboard!");
-    });
+    } catch (err) {
+        alert("Could not share automatically. You can take a screenshot! 📸");
+    }
   };
 
   const createCelebration = () => {
@@ -182,6 +192,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
           </div>
           
           <div className="flex items-center gap-3">
+            {/* NIEUW: HELP BUTTON */}
+            <button 
+              onClick={() => setShowRulesModal(true)}
+              className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95"
+              title="How to Play"
+            >
+              <span className="material-symbols-outlined">help</span>
+            </button>
+
             <button 
               onClick={() => setShowSupportModal(true)}
               className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-red-400 transition-all hover:bg-red-500/20 hover:scale-110 active:scale-95"
@@ -367,7 +386,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
             </div>
           )}
 
-          {/* --- DE ECHTE FOOTER (Altijd zichtbaar) --- */}
+          {/* --- DE ECHTE FOOTER --- */}
           <div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
             
             <p className="text-xs text-gray-500 opacity-80">
@@ -433,6 +452,55 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
                     <p className="text-xs text-gray-600 mt-4">
                         Thank you for playing & keep riding! 🚴
                     </p>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- NIEUW: RULES MODAL --- */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                <button 
+                    onClick={() => setShowRulesModal(false)}
+                    className="absolute top-4 right-4 text-text-muted hover:text-white"
+                >
+                    <span className="material-symbols-outlined">close</span>
+                </button>
+                
+                <div className="flex flex-col text-left">
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="material-symbols-outlined text-3xl text-primary">help</span>
+                        <h3 className="text-2xl font-bold text-white">How to Play</h3>
+                    </div>
+
+                    <ul className="space-y-4 text-sm text-gray-300">
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">1.</span>
+                            <span>Read the <strong>Daily Statement</strong> carefully (e.g., "Won a TDF Stage").</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">2.</span>
+                            <span><strong>Select</strong> the riders that MATCH the statement.</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">3.</span>
+                            <span><strong>Ignore</strong> the imposters (riders who don't match).</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">4.</span>
+                            <span>You get <strong>1 point</strong> for every correct decision (picking a correct rider OR avoiding an imposter).</span>
+                        </li>
+                    </ul>
+
+                    <div className="mt-8 pt-6 border-t border-[#22492f] text-center">
+                        <button 
+                            onClick={() => setShowRulesModal(false)}
+                            className="bg-primary text-background-dark font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform"
+                        >
+                            Got it!
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
