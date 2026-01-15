@@ -377,7 +377,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
                     </p>
 
                     <a 
-                        href="https://www.buymeacoffee.com" 
+                        href="https://buymeacoffee.com/zimmerfann" 
                         target="_blank" 
                         rel="noreferrer"
                         className="w-full bg-[#FFDD00] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all mb-3"
