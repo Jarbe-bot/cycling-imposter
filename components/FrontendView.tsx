@@ -184,12 +184,22 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
     <div className="flex grow flex-col items-center w-full">
       <header className="sticky top-0 z-40 w-full border-b border-[#22492f] bg-[#102316]/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-[960px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-primary text-background-dark shadow-neon">
-              <span className="material-symbols-outlined text-2xl">directions_bike</span>
-            </div>
-            <h1 className="hidden text-xl font-bold tracking-tight text-white sm:block">Cycling Imposter</h1>
-          </div>
+          <div className="flex items-center gap-3 select-none">
+  {/* Logo Icoon */}
+  <div className="relative flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-green-400 to-emerald-600 shadow-[0_0_15px_rgba(34,197,94,0.6)]">
+    <span className="material-symbols-outlined text-2xl text-[#0a160e] font-bold">directions_bike</span>
+  </div>
+  
+  {/* Logo Tekst */}
+  <div className="hidden flex-col sm:flex">
+    <h1 
+      className="text-2xl text-white tracking-wider uppercase" 
+      style={{ fontFamily: '"Russo One", sans-serif', textShadow: '0 2px 10px rgba(34, 197, 94, 0.5)' }}
+    >
+      Cycling <span className="text-primary">Imposter</span>
+    </h1>
+  </div>
+</div>
           
           <div className="flex items-center gap-3">
             {/* NIEUW: HELP BUTTON */}
