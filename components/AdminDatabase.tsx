@@ -306,3 +306,6 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
       )}
     </div>
   );
+  };
+
+export default AdminDatabase;
