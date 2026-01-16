@@ -95,10 +95,14 @@ const AppContent: React.FC = () => {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a160e] text-primary">
             <div className="flex flex-col items-center animate-pulse gap-4">
-               {/* HET PREMIUM SVG ICOON (Exact dezelfde als eerst, maar dan direct geladen!) */}
-                <svg xmlns="http://www.w3.org/2000/svg" height="64" viewBox="0 0 24 24" width="64" fill="currentColor" className="spin-slow">
-                    <path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.9-.6-4-1.5l-2.5 2.5c-.3.3-.8.3-1.1 0l-1.9-1.9c-.3-.3-.3-.8 0-1.1l1.2-1.2zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
-                </svg>
+               {/* HET ORIGINEEL, MAAR DAN ZONDER TEKST-GLITCH */}
+                {/* We gebruiken de code 'e52f' in plaats van het woord 'directions_bike' */}
+                <span 
+                    className="material-symbols-outlined text-primary spin-slow" 
+                    style={{ fontSize: '64px', userSelect: 'none' }}
+                >
+                    &#xe52f;
+                </span>
                 
                 <h2 className="text-xl font-bold tracking-widest text-white mt-2">LOADING STAGE...</h2>
                 <p className="text-xs text-gray-500">Checking tire pressure</p>
