@@ -167,7 +167,7 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
     c.team.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
- return (
+  return (
     <div className="flex h-screen overflow-hidden bg-background-dark">
       {/* SIDEBAR (Desktop Only) */}
       <aside className="w-64 bg-[#0d1c12] border-r border-[#22492f] hidden md:flex flex-col flex-shrink-0">
@@ -306,3 +306,5 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
       )}
     </div>
   );
+
+export default AdminDatabase;
