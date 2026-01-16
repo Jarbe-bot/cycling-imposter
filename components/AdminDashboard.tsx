@@ -157,25 +157,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
-      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border-dark bg-background-dark/80 backdrop-blur-md px-6 py-4 lg:px-10">
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border-dark bg-background-dark/80 backdrop-blur-md px-4 py-4 lg:px-10">
         <div className="flex items-center gap-4 text-white">
-          <div className="flex items-center justify-center bg-primary rounded-full size-10 text-background-dark shadow-neon">
+          <div className="flex items-center justify-center bg-primary rounded-full size-10 text-background-dark shadow-neon flex-shrink-0">
             <span className="material-symbols-outlined text-2xl font-bold">pedal_bike</span>
           </div>
           <div>
-            <h2 className="text-white text-xl font-bold leading-tight tracking-tight">Cycling Imposter</h2>
-            <p className="text-text-muted text-xs font-medium tracking-wide uppercase">Mission Control</p>
+            <h2 className="text-white text-lg md:text-xl font-bold leading-tight tracking-tight">Cycling Imposter</h2>
+            <p className="text-text-muted text-[10px] md:text-xs font-medium tracking-wide uppercase">Mission Control</p>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-4">
-          <button onClick={onNavigateToDatabase} className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-muted hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[20px]">database</span>
-            <span>Database</span>
+        
+        <div className="flex items-center justify-end gap-2 md:gap-4">
+          {/* DATABASE KNOP: Nu altijd zichtbaar! (flex i.p.v. hidden md:flex) */}
+          <button onClick={onNavigateToDatabase} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-muted hover:text-white transition-colors rounded-lg hover:bg-white/5">
+            <span className="material-symbols-outlined text-[24px] md:text-[20px]">database</span>
+            {/* Tekst verbergen we op mobiel om ruimte te sparen */}
+            <span className="hidden md:inline">Database</span>
           </button>
-          <div className="h-8 w-px bg-border-dark mx-2"></div>
-          <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors">
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-            <span>Logout</span>
+          
+          <div className="h-8 w-px bg-border-dark mx-1 md:mx-2"></div>
+          
+          <button onClick={onLogout} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors rounded-lg hover:bg-white/5">
+            <span className="material-symbols-outlined text-[24px] md:text-[20px]">logout</span>
+            <span className="hidden md:inline">Logout</span>
           </button>
         </div>
       </header>
