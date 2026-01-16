@@ -90,14 +90,18 @@ const AppContent: React.FC = () => {
     });
   };
 
-  // NIEUW: HET LAADSCHERM 🚴‍♂️💨
+// NIEUW: HET LAADSCHERM MET SVG (Geen tekst-flits meer!)
   if (isLoading) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a160e] text-primary">
             <div className="flex flex-col items-center animate-pulse gap-4">
-                <span className="material-symbols-outlined text-6xl spin-slow">directions_bike</span>
-                <h2 className="text-xl font-bold tracking-widest text-white">LOADING STAGE...</h2>
-                <p className="text-xs text-gray-500">Inflating tires & checking brakes</p>
+                {/* SVG Icoon: Laadt direct, geen vertraging */}
+                <svg xmlns="http://www.w3.org/2000/svg" height="64" viewBox="0 -960 960 960" width="64" fill="currentColor" className="spin-slow">
+                    <path d="M280-160q-50 0-85-35t-35-85q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35Zm400 0q-50 0-85-35t-35-85q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35ZM280-370q-12 0-23.5-3t-22.5-10q-21-13-32.5-34.5T190-466l22-64h124q15 23 37.5 36.5T424-480h222l-60 110h-86v60h116l84-156h84q21 0 38.5 12t24.5 32L864-386l-54 22-21-46H696l40-70H424q-22 0-41-11t-31-31l-36-60 52-164q7-21 24.5-34t39.5-13h208v60H438l-34 106h106l15 31h255q20 0 38 10t28 28l58 136q12 28 4.5 56T882-270l-88 38-24-54 54-22-11-28h-80l-28 56H480v-60h190l34-60H426q-34 0-61.5-19.5T324-410l-28 58q-14 30-41 46t-59 16h-4v-60h4q12 0 22-6.5t15-18.5l47-95ZM160-590h-80v-60h102l22 60H160Z"/>
+                </svg>
+                
+                <h2 className="text-xl font-bold tracking-widest text-white mt-2">LOADING STAGE...</h2>
+                <p className="text-xs text-gray-500">Checking tire pressure</p>
             </div>
         </div>
     );
