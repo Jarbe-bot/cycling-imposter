@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Quiz, UserStats, Cyclist } from '../types';
 import { INITIAL_CYCLISTS } from '../constants';
-import { supabase } from '../supabaseClient'; // <--- 1. IMPORT TOEGEVOEGD
+import { supabase } from '../supabaseClient';
 
 // --- HULP COMPONENT: COUNTDOWN TIMER ---
 const CountdownTimer = () => {
@@ -81,7 +81,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
     );
   };
 
-  // --- 2. AANGEPASTE SUBMIT FUNCTIE ---
+  // --- SUBMIT MET DATABASE OPSLAG ---
   const handleSubmit = async () => {
     let currentScore = 0;
     quiz.slots.forEach(slot => {
@@ -90,7 +90,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
       if (correctlyIdentified) currentScore++;
     });
     
-    // UI Updates (Direct doen, niet wachten op database)
+    // UI Updates
     setScore(currentScore);
     setIsSubmitted(true);
     updateStats(currentScore);
@@ -102,10 +102,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
     
     createCelebration();
 
-    // --- DATA VERZAMELEN ---
-    // We sturen dit "fire and forget" naar Supabase.
-    // Als het mislukt, merkt de gebruiker er niks van (geen foutmelding), 
-    // maar hebben wij geen data. Dat is prima voor analytics.
+    // Data naar Supabase sturen
     try {
         await supabase.from('game_results').insert({
             quiz_date: today,
@@ -419,4 +416,110 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
                 Instagram
               </a>
               <span>•</span>
-              <a
+              <a 
+                href="mailto:hello@cyclingimposter.com" 
+                className="hover:text-primary transition-colors hover:underline"
+              >
+                Contact & Bugs
+              </a>
+            </div>
+
+            <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
+                <span className="material-symbols-outlined text-[12px]">lock</span> Admin
+            </button>
+
+          </div>
+        </div>
+      </main>
+
+      {/* SUPPORT MODAL */}
+      {showSupportModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                <button 
+                    onClick={() => setShowSupportModal(false)}
+                    className="absolute top-4 right-4 text-text-muted hover:text-white"
+                >
+                    <span className="material-symbols-outlined">close</span>
+                </button>
+                
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-red-500/10 p-4 rounded-full mb-4">
+                        <span className="material-symbols-outlined text-4xl text-red-500">favorite</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Enjoying the Game?</h3>
+                    <p className="text-gray-400 text-sm mb-6">
+                        Cycling Imposter is a free hobby project. If you'd like to fuel the developer's rides, a coffee is always appreciated! ☕️
+                    </p>
+
+                    <a 
+                        href="https://buymeacoffee.com/zimmerfann" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="w-full bg-[#FFDD00] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all mb-3"
+                    >
+                        <span className="material-symbols-outlined">coffee</span>
+                        Buy me a Coffee
+                    </a>
+                    
+                    <p className="text-xs text-gray-600 mt-4">
+                        Thank you for playing & keep riding! 🚴
+                    </p>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- NIEUW: RULES MODAL --- */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                <button 
+                    onClick={() => setShowRulesModal(false)}
+                    className="absolute top-4 right-4 text-text-muted hover:text-white"
+                >
+                    <span className="material-symbols-outlined">close</span>
+                </button>
+                
+                <div className="flex flex-col text-left">
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="material-symbols-outlined text-3xl text-primary">help</span>
+                        <h3 className="text-2xl font-bold text-white">How to Play</h3>
+                    </div>
+
+                    <ul className="space-y-4 text-sm text-gray-300">
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">1.</span>
+                            <span>Read the <strong>Daily Statement</strong> carefully (e.g., "Won a TDF Stage").</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">2.</span>
+                            <span><strong>Select</strong> the riders that MATCH the statement.</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">3.</span>
+                            <span><strong>Ignore</strong> the imposters (riders who don't match).</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <span className="font-bold text-primary">4.</span>
+                            <span>You get <strong>1 point</strong> for every correct decision (picking a correct rider OR avoiding an imposter).</span>
+                        </li>
+                    </ul>
+
+                    <div className="mt-8 pt-6 border-t border-[#22492f] text-center">
+                        <button 
+                            onClick={() => setShowRulesModal(false)}
+                            className="bg-primary text-background-dark font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform"
+                        >
+                            Got it!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FrontendView;
