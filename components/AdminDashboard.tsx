@@ -357,7 +357,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     const isToday = stat.date === new Date().toISOString().split('T')[0];
 
                     return (
-                        <div key={stat.date} className="flex-1 flex flex-col items-center group relative">
+                        <div key={stat.date} className="flex-1 flex flex-col items-center justify-end group relative h-full">
                             {/* Tooltip */}
                             <div className="absolute bottom-full mb-2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                                 {stat.date}: {stat.count} plays
