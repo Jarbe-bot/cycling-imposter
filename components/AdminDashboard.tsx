@@ -20,20 +20,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // STATISTIEKEN STATE
+  const [stats, setStats] = useState({ plays: 0, avgScore: 0, perfectScores: 0 });
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
   // Picker states
   const [showPicker, setShowPicker] = useState<number | null>(null);
-  const [pickerSearch, setPickerSearch] = useState(''); // NIEUW: Zoekterm voor picker
+  const [pickerSearch, setPickerSearch] = useState('');
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Update local state when prop changes (belangrijk voor sync)
   useEffect(() => {
     setLocalQuiz(quiz);
   }, [quiz]);
 
   useEffect(() => {
     fetchQuizForDate(selectedDate);
+    fetchStatsForDate(selectedDate); // <--- OOK STATS OPHALEN
   }, [selectedDate]);
+
+  // NIEUWE FUNCTIE: Stats ophalen
+  const fetchStatsForDate = async (date: string) => {
+    setIsLoadingStats(true);
+    try {
+        const { data, error } = await supabase
+            .from('game_results')
+            .select('score')
+            .eq('quiz_date', date);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            const totalPlays = data.length;
+            const totalScore = data.reduce((acc, curr) => acc + curr.score, 0);
+            const avg = totalScore / totalPlays;
+            const perfect = data.filter(r => r.score === 8).length;
+
+            setStats({
+                plays: totalPlays,
+                avgScore: parseFloat(avg.toFixed(1)), // 1 decimaal
+                perfectScores: perfect
+            });
+        } else {
+            setStats({ plays: 0, avgScore: 0, perfectScores: 0 });
+        }
+    } catch (err) {
+        console.error("Error fetching stats:", err);
+    } finally {
+        setIsLoadingStats(false);
+    }
+  };
 
   const fetchQuizForDate = async (date: string) => {
     setIsLoading(true);
@@ -109,7 +145,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       return { ...prev, slots: newSlots };
     });
     setShowPicker(null);
-    setPickerSearch(''); // Reset zoekveld na kiezen
+    setPickerSearch('');
   };
 
   const generateAIStatement = async () => {
@@ -149,7 +185,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const { days, firstDay } = getDaysInMonth(currentMonth);
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // FILTER LOGICA VOOR PICKER
   const filteredPickerCyclists = cyclists.filter(c => 
     c.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
     c.team.toLowerCase().includes(pickerSearch.toLowerCase())
@@ -169,10 +204,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         </div>
         
         <div className="flex items-center justify-end gap-2 md:gap-4">
-          {/* DATABASE KNOP: Nu altijd zichtbaar! (flex i.p.v. hidden md:flex) */}
           <button onClick={onNavigateToDatabase} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-muted hover:text-white transition-colors rounded-lg hover:bg-white/5">
             <span className="material-symbols-outlined text-[24px] md:text-[20px]">database</span>
-            {/* Tekst verbergen we op mobiel om ruimte te sparen */}
             <span className="hidden md:inline">Database</span>
           </button>
           
@@ -204,6 +237,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </span>
             {isSaving ? 'Saving...' : `Publish to ${selectedDate}`}
           </button>
+        </div>
+
+        {/* NIEUWE ANALYTICS KAARTEN */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
+                <div className="size-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                    <span className="material-symbols-outlined">group</span>
+                </div>
+                <div>
+                    <p className="text-text-muted text-xs uppercase font-bold">Total Plays</p>
+                    <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.plays}</p>
+                </div>
+            </div>
+            <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
+                <div className="size-12 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center">
+                    <span className="material-symbols-outlined">star</span>
+                </div>
+                <div>
+                    <p className="text-text-muted text-xs uppercase font-bold">Avg Score</p>
+                    <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.avgScore} <span className="text-sm text-gray-500">/ 8</span></p>
+                </div>
+            </div>
+            <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
+                <div className="size-12 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center">
+                    <span className="material-symbols-outlined">emoji_events</span>
+                </div>
+                <div>
+                    <p className="text-text-muted text-xs uppercase font-bold">Perfect Scores</p>
+                    <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.perfectScores}</p>
+                </div>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -325,7 +389,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     </div>
                     </div>
 
-                    {/* NIEUW: RENNER KIEZER MET ZOEKFUNCTIE */}
                     {showPicker === idx && (
                     <div className="absolute inset-0 z-20 bg-background-dark flex flex-col rounded-2xl border border-primary overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex flex-col bg-primary/10 border-b border-primary/20">
@@ -335,7 +398,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                                     <span className="material-symbols-outlined text-sm">close</span>
                                 </button>
                             </div>
-                            {/* ZOEKBALK */}
                             <div className="px-3 pb-3">
                                 <input 
                                     autoFocus
