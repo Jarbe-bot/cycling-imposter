@@ -24,6 +24,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [stats, setStats] = useState({ plays: 0, avgScore: 0, perfectScores: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
+  // NIEUW: GLOBAL STATS & KALENDER DATA
+  const [quizDates, setQuizDates] = useState<string[]>([]); // Welke dagen hebben een quiz?
+  const [dailyStats, setDailyStats] = useState<{date: string, count: number}[]>([]); // Voor de grafiek
+
   // Picker states
   const [showPicker, setShowPicker] = useState<number | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -34,12 +38,71 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     setLocalQuiz(quiz);
   }, [quiz]);
 
+  // Initial Data Load (Grafiek & Kalender stippen)
+  useEffect(() => {
+    fetchQuizDates();
+    fetchDailyPlayerStats();
+  }, []);
+
+  // Update bij datum wissel (Specifieke dag stats)
   useEffect(() => {
     fetchQuizForDate(selectedDate);
-    fetchStatsForDate(selectedDate); // <--- OOK STATS OPHALEN
+    fetchStatsForDate(selectedDate);
   }, [selectedDate]);
 
-  // NIEUWE FUNCTIE: Stats ophalen
+  // 1. OPHALEN WELKE DAGEN EEN QUIZ HEBBEN
+  const fetchQuizDates = async () => {
+    const { data } = await supabase.from('daily_quizzes').select('date');
+    if (data) {
+        setQuizDates(data.map(d => d.date));
+    }
+  };
+
+  // 2. OPHALEN DATA VOOR DE GRAFIEK (Laatste 30 dagen)
+  const fetchDailyPlayerStats = async () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+    // We halen alleen de datums op van resultaten, dat is genoeg om te tellen
+    const { data, error } = await supabase
+        .from('game_results')
+        .select('quiz_date')
+        .gte('quiz_date', dateStr);
+
+    if (error) {
+        console.error("Error loading graph data:", error);
+        return;
+    }
+
+    if (data) {
+        // Tellen per dag
+        const counts: Record<string, number> = {};
+        
+        // Vul eerst alle dagen met 0 (zodat je geen gaten in de grafiek hebt)
+        for (let i = 0; i < 30; i++) {
+             const d = new Date(thirtyDaysAgo);
+             d.setDate(d.getDate() + i + 1); // +1 om tot vandaag te komen
+             const key = d.toISOString().split('T')[0];
+             counts[key] = 0;
+        }
+
+        // Vul de echte data in
+        data.forEach(r => {
+            if (counts[r.quiz_date] !== undefined) {
+                counts[r.quiz_date]++;
+            }
+        });
+
+        // Omzetten naar array voor de render
+        const statsArray = Object.entries(counts)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        
+        setDailyStats(statsArray);
+    }
+  };
+
   const fetchStatsForDate = async (date: string) => {
     setIsLoadingStats(true);
     try {
@@ -58,7 +121,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
             setStats({
                 plays: totalPlays,
-                avgScore: parseFloat(avg.toFixed(1)), // 1 decimaal
+                avgScore: parseFloat(avg.toFixed(1)),
                 perfectScores: perfect
             });
         } else {
@@ -118,6 +181,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         }, { onConflict: 'date' });
 
         if (error) throw error;
+        
+        // Update ook de lokale lijst zodat het stippeltje verschijnt!
+        if (!quizDates.includes(selectedDate)) {
+            setQuizDates([...quizDates, selectedDate]);
+        }
+        
         alert(`Quiz voor ${selectedDate} opgeslagen!`);
     } catch (error: any) {
         console.error("Save failed:", error);
@@ -190,6 +259,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     c.team.toLowerCase().includes(pickerSearch.toLowerCase())
   );
 
+  // Bereken max waarde voor grafiek schaal
+  const maxGraphValue = Math.max(...dailyStats.map(s => s.count), 5); // Minimaal 5 als schaal
+
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border-dark bg-background-dark/80 backdrop-blur-md px-4 py-4 lg:px-10">
@@ -239,14 +311,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </button>
         </div>
 
-        {/* NIEUWE ANALYTICS KAARTEN */}
+        {/* ANALYTICS KAARTEN */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
                 <div className="size-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
                     <span className="material-symbols-outlined">group</span>
                 </div>
                 <div>
-                    <p className="text-text-muted text-xs uppercase font-bold">Total Plays</p>
+                    <p className="text-text-muted text-xs uppercase font-bold">Total Plays Today</p>
                     <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.plays}</p>
                 </div>
             </div>
@@ -255,7 +327,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     <span className="material-symbols-outlined">star</span>
                 </div>
                 <div>
-                    <p className="text-text-muted text-xs uppercase font-bold">Avg Score</p>
+                    <p className="text-text-muted text-xs uppercase font-bold">Avg Score Today</p>
                     <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.avgScore} <span className="text-sm text-gray-500">/ 8</span></p>
                 </div>
             </div>
@@ -267,6 +339,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     <p className="text-text-muted text-xs uppercase font-bold">Perfect Scores</p>
                     <p className="text-2xl text-white font-bold">{isLoadingStats ? '...' : stats.perfectScores}</p>
                 </div>
+            </div>
+        </div>
+
+        {/* NIEUWE GRAFIEK: PLAYER HISTORY */}
+        <div className="bg-surface-dark p-6 rounded-xl border border-border-dark">
+            <h3 className="text-white text-lg font-bold mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">monitoring</span>
+                Player Activity (Last 30 Days)
+            </h3>
+            
+            <div className="w-full h-32 flex items-end gap-1 md:gap-2">
+                {dailyStats.map((stat, index) => {
+                    const heightPercent = (stat.count / maxGraphValue) * 100;
+                    // Laat alleen om de paar dagen het label zien op kleine schermen
+                    const showLabel = window.innerWidth < 768 ? index % 5 === 0 : index % 2 === 0;
+                    const isToday = stat.date === new Date().toISOString().split('T')[0];
+
+                    return (
+                        <div key={stat.date} className="flex-1 flex flex-col items-center group relative">
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full mb-2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                                {stat.date}: {stat.count} plays
+                            </div>
+                            
+                            {/* Bar */}
+                            <div 
+                                style={{ height: `${Math.max(heightPercent, 2)}%` }} // Minimaal 2% hoogte voor zichtbaarheid
+                                className={`w-full rounded-t-sm transition-all duration-500 ${isToday ? 'bg-primary shadow-neon' : 'bg-[#22492f] group-hover:bg-primary/50'}`}
+                            ></div>
+                            
+                            {/* Label */}
+                            <div className="mt-2 h-4 text-[10px] text-gray-500 font-mono hidden md:block rotate-[-45deg] origin-left translate-y-2">
+                                {stat.date.slice(5)} {/* Alleen MM-DD */}
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
         </div>
 
@@ -299,17 +408,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day + 1).toISOString().split('T')[0];
                     const isSelected = selectedDate === dateStr;
                     const isToday = dateStr === new Date().toISOString().split('T')[0];
+                    const hasQuiz = quizDates.includes(dateStr); // HEEFT DEZE DAG EEN QUIZ?
 
                     return (
                         <button 
                             key={i} 
                             onClick={() => setSelectedDate(dateStr)}
-                            className={`aspect-square rounded-full flex items-center justify-center text-sm transition-all border-2
+                            className={`aspect-square rounded-full flex flex-col items-center justify-center text-sm transition-all border-2 relative
                                 ${isSelected ? 'bg-primary text-background-dark font-bold border-primary' : 'text-text-muted hover:bg-input-dark border-transparent'}
                                 ${isToday && !isSelected ? 'border-primary/50 text-white' : ''}
                             `}
                         >
                             {day}
+                            {/* DE GROENE STIP INDICATOR */}
+                            {hasQuiz && !isSelected && (
+                                <div className="w-1 h-1 rounded-full bg-primary mt-0.5 shadow-neon"></div>
+                            )}
                         </button>
                     )
                 })}
