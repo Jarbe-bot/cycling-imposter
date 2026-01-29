@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Quiz, UserStats, Cyclist } from '../types';
 import { INITIAL_CYCLISTS } from '../constants';
 import { supabase } from '../supabaseClient';
-import { saveDailyResult, hasPlayedDate, getScoreForDate } from '../utils/history';
+import { saveDailyResult, hasPlayedDate, getScoreForDate, migrateLegacyData } from '../utils/history';
 
 // --- HULP COMPONENT: COUNTDOWN TIMER ---
 const CountdownTimer = () => {
@@ -71,6 +71,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   }, []);
 
   useEffect(() => {
+    migrateLegacyData();
     checkPlayedStatus(activeDate);
   }, [activeDate]);
 
