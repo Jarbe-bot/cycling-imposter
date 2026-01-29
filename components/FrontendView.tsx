@@ -234,7 +234,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz, cyclists, userStats, 
         </div>
       </header>
 
-      <main className="flex grow flex-col items-center w-full pb-12">
+      <main className="flex grow flex-col items-center w-full pb-40">
         <div className="flex w-full max-w-[960px] flex-col px-4 py-8 sm:px-6 lg:px-8">
           
           <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center">
