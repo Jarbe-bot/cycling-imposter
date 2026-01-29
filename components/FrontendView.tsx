@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Quiz, UserStats, Cyclist } from '../types';
 import { INITIAL_CYCLISTS } from '../constants';
 import { supabase } from '../supabaseClient';
-import { saveDailyResult, hasPlayedDate, getScoreForDate } from '../utils/history'; // <--- NIEUW: Import uit je nieuwe file
+import { saveDailyResult, hasPlayedDate, getScoreForDate } from '../utils/history';
 
 // --- HULP COMPONENT: COUNTDOWN TIMER ---
 const CountdownTimer = () => {
@@ -41,7 +41,7 @@ const CountdownTimer = () => {
 };
 
 interface FrontendViewProps {
-  quiz: Quiz; // Dit is de initiële quiz (vandaag)
+  quiz: Quiz;
   cyclists: Cyclist[];
   userStats: UserStats;
   updateStats: (score: number) => void;
@@ -49,8 +49,7 @@ interface FrontendViewProps {
 }
 
 const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists, userStats, updateStats, onGoAdmin }) => {
-  // --- STATE ---
-  // We houden nu lokaal bij welke quiz we tonen (kan vandaag zijn, of een oude)
+  // STATE
   const [activeQuiz, setActiveQuiz] = useState<Quiz>(initialQuiz);
   const [activeDate, setActiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
@@ -60,32 +59,27 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
-  const [showArchiveModal, setShowArchiveModal] = useState(false); // <--- NIEUW: Archief modal
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   
-  const [availableDates, setAvailableDates] = useState<string[]>([]); // Lijst van alle quizzen
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
 
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
 
-  // Initialiseer bij start (check of we vandaag al gespeeld hebben)
   useEffect(() => {
     checkPlayedStatus(activeDate);
   }, []);
 
-  // Als de datum verandert (door archief), check status opnieuw
   useEffect(() => {
     checkPlayedStatus(activeDate);
   }, [activeDate]);
 
-  // Functie om te checken: heb ik DEZE datum al gespeeld?
   const checkPlayedStatus = (date: string) => {
     if (hasPlayedDate(date)) {
         const savedScore = getScoreForDate(date);
-        // Voor nu weten we niet PRECIES welke renners je toen koos (slaan we niet op in de simpele history),
-        // maar we weten wel je score. We tonen de quiz als "Submitted" met de score.
         setScore(savedScore || 0);
         setIsSubmitted(true);
-        setSelectedIds([]); // We kunnen de selectie niet herstellen in deze simpele versie
+        setSelectedIds([]);
     } else {
         setIsSubmitted(false);
         setScore(0);
@@ -93,12 +87,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-  // Archive openen: Haal lijst van datums op
+  // --- FIX: ALLEEN DATUMS OPHALEN TOT VANDAAG ---
   const openArchive = async () => {
     setShowArchiveModal(true);
+    const today = new Date().toISOString().split('T')[0];
+
     const { data } = await supabase
         .from('daily_quizzes')
         .select('date')
+        .lte('date', today) // <--- DEZE REGEL VOORKOMT TOEKOMSTIGE QUIZZEN
         .order('date', { ascending: false });
     
     if (data) {
@@ -106,7 +103,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-  // Oude quiz laden
   const loadQuizForDate = async (date: string) => {
     setIsLoadingArchive(true);
     setShowArchiveModal(false);
@@ -125,7 +121,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                 slots: data.slots
             });
             setActiveDate(date);
-            // De useEffect hook zal nu automatisch checken of deze al gespeeld is
         }
     } catch (err) {
         console.error("Kon quiz niet laden", err);
@@ -152,18 +147,14 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     setScore(currentScore);
     setIsSubmitted(true);
     
-    // Alleen stats updaten als het de quiz van VANDAAG is (om streak fraude te voorkomen)
     const today = new Date().toISOString().split('T')[0];
     if (activeDate === today) {
         updateStats(currentScore);
     }
     
-    // Altijd opslaan in de nieuwe history manager
     saveDailyResult(activeDate, currentScore);
-    
     createCelebration();
 
-    // Data naar Supabase
     try {
         await supabase.from('game_results').insert({
             quiz_date: activeDate,
@@ -183,16 +174,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
         try {
             await navigator.share({ text: text });
             return;
-        } catch (err) {
-            console.log("Share cancelled", err);
-        }
+        } catch (err) { console.log("Share cancelled", err); }
     }
     try {
         await navigator.clipboard.writeText(text);
         alert("Result copied!");
-    } catch (err) {
-        alert("Could not share automatically.");
-    }
+    } catch (err) { alert("Could not share automatically."); }
   };
 
   const createCelebration = () => {
@@ -217,17 +204,14 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     const div = document.createElement('div');
     div.className = 'celebration-emoji'; 
     div.textContent = content;
-    
     div.style.left = `${Math.random() * 90 + 5}%`;
     div.style.bottom = '-80px';
     div.style.position = 'fixed';
     div.style.zIndex = '100';
     div.style.pointerEvents = 'none'; 
     div.style.willChange = 'transform, opacity';
-    
     const size = Math.random() * 2 + 1.5; 
     div.style.fontSize = `${size}rem`;
-    
     if (content.length > 2) {
         div.style.fontSize = `${size * 0.7}rem`;
         div.style.fontWeight = '900';
@@ -236,18 +220,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
         div.style.fontFamily = 'system-ui, sans-serif';
         div.style.whiteSpace = 'nowrap';
     }
-
     const duration = speed === 'fast' ? 1200 + Math.random() * 800 : 2500 + Math.random() * 1000;
-
     const animation = div.animate([
       { transform: 'translateY(0) scale(0.5)', opacity: 0 },
       { transform: 'translateY(-20vh) scale(1.1)', opacity: 1, offset: 0.15 },
       { transform: `translateY(-110vh) scale(1) rotate(${Math.random() * 40 - 20}deg)`, opacity: 0 }
-    ], {
-      duration: duration,
-      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-    });
-
+    ], { duration: duration, easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' });
     container.appendChild(div);
     animation.onfinish = () => div.remove();
   };
@@ -267,7 +245,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
           </div>
           
           <div className="flex items-center gap-3">
-            {/* NIEUW: ARCHIEF KNOP */}
             <button 
               onClick={openArchive}
               className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95"
@@ -284,6 +261,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
               <span className="material-symbols-outlined">help</span>
             </button>
 
+            {/* HIER IS DE KOFFIE KNOP */}
+            <button 
+              onClick={() => setShowSupportModal(true)}
+              className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-red-400 transition-all hover:bg-red-500/20 hover:scale-110 active:scale-95"
+              title="Support the Dev"
+            >
+              <span className="material-symbols-outlined">favorite</span>
+            </button>
+
             <button 
                 onClick={triggerGigiSprint}
                 className="group relative hidden sm:flex h-10 items-center justify-center gap-2 overflow-hidden rounded-full bg-[#1a3322] px-5 text-sm font-bold text-primary transition-all hover:bg-primary hover:text-background-dark hover:shadow-neon active:scale-95"
@@ -296,14 +282,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
         </div>
       </header>
 
-      {/* LOADING OVERLAY VOOR ARCHIEF WISSEL */}
       {isLoadingArchive && (
          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
          </div>
       )}
 
-      {/* HIER IS DE LAYOUT FIX: pb-40 i.p.v. pb-12 */}
       <main className="flex grow flex-col items-center w-full pb-40">
         <div className="flex w-full max-w-[960px] flex-col px-4 py-8 sm:px-6 lg:px-8">
           
@@ -318,14 +302,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             <p className="mt-2 text-lg font-medium text-gray-400">Select the riders that match the statement.</p>
           </div>
 
-          {/* GRID */}
           <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
             {activeQuiz.slots.map((slot) => {
               const cyclist = activeCyclistList.find(c => c.id === slot.cyclistId);
-              
-              if (!cyclist) {
-                  return <div key={slot.cyclistId} className="aspect-[3/4] bg-[#102216] rounded-xl border border-dashed border-[#22492f] flex items-center justify-center text-xs text-gray-600">Loading...</div>;
-              }
+              if (!cyclist) return <div key={slot.cyclistId} className="aspect-[3/4] bg-[#102216] rounded-xl border border-dashed border-[#22492f] flex items-center justify-center text-xs text-gray-600">Loading...</div>;
               
               const isSelected = selectedIds.includes(cyclist.id);
               const isImposter = slot.isImposter;
@@ -337,8 +317,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
               let statusIcon = '';
 
               if (isSubmitted) {
-                // Als we een oude quiz inladen, weten we de selectie niet meer, dus tonen we alleen HET RESULTAAT (Imposter of niet)
-                // Dit is een simpele weergave voor archief: We laten gewoon zien wie wie is.
                 if (isImposter) {
                     borderClass = 'ring-4 ring-red-500/50 grayscale';
                     overlayColor = 'bg-red-900/40';
@@ -350,8 +328,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                     statusText = 'CORRECT';
                     statusIcon = 'check_circle';
                 }
-                
-                // Als we NET gespeeld hebben (selectedIds is gevuld), tonen we de gedetailleerde feedback zoals voorheen
                 if (selectedIds.length > 0) {
                      if (isCorrect) {
                         borderClass = 'ring-4 ring-green-500 ring-offset-2 ring-offset-background-dark';
@@ -363,45 +339,26 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                         statusText = isImposter ? 'MISSED IMPOSTER' : 'MISSED RIDER';
                     }
                 }
-
               } else if (isSelected) {
                 borderClass = 'ring-4 ring-primary ring-offset-2 ring-offset-background-dark shadow-neon';
               }
 
               return (
-                <div 
-                  key={cyclist.id}
-                  onClick={() => toggleSelect(cyclist.id)}
-                  className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-card-dark transition-all hover:-translate-y-1 ${borderClass}`}
-                >
+                <div key={cyclist.id} onClick={() => toggleSelect(cyclist.id)} className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-card-dark transition-all hover:-translate-y-1 ${borderClass}`}>
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#0d1c12]">
-                    <img 
-                        src={cyclist.imageUrl} 
-                        alt={cyclist.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')}
-                    />
-                    
+                    <img src={cyclist.imageUrl} alt={cyclist.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')} />
                     {!isSubmitted && (
-                        <div className={`absolute top-3 right-3 z-20 flex size-8 items-center justify-center rounded-full border-2 transition-all ${
-                        isSelected ? 'bg-primary border-primary text-background-dark shadow-neon' : 'border-white/30 bg-black/20 opacity-0 group-hover:opacity-100'
-                        }`}>
+                        <div className={`absolute top-3 right-3 z-20 flex size-8 items-center justify-center rounded-full border-2 transition-all ${isSelected ? 'bg-primary border-primary text-background-dark shadow-neon' : 'border-white/30 bg-black/20 opacity-0 group-hover:opacity-100'}`}>
                         <span className="material-symbols-outlined font-bold text-sm">check</span>
                         </div>
                     )}
-
                     {isSubmitted && (
                         <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-300 group-hover:opacity-0 ${overlayColor}`}>
-                            <span className={`material-symbols-outlined text-4xl mb-2 ${statusText.includes('CORRECT') ? 'text-green-400' : 'text-red-400'}`}>
-                                {statusIcon}
-                            </span>
-                            <span className="font-bold text-sm tracking-widest text-white text-center px-2">
-                                {statusText}
-                            </span>
+                            <span className={`material-symbols-outlined text-4xl mb-2 ${statusText.includes('CORRECT') ? 'text-green-400' : 'text-red-400'}`}>{statusIcon}</span>
+                            <span className="font-bold text-sm tracking-widest text-white text-center px-2">{statusText}</span>
                         </div>
                     )}
                   </div>
-
                   <div className="absolute bottom-0 left-0 z-20 w-full p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
                     <p className="text-base font-bold leading-tight text-white">{cyclist.name}</p>
                     <p className="text-xs text-gray-400">{cyclist.team}</p>
@@ -418,47 +375,26 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
               </button>
             </div>
           ) : (
-            // RESULT & STATS SECTION
             <div className="mt-12 flex flex-col items-center w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden mb-8">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent"></div>
-                    
-                    <span className="material-symbols-outlined text-6xl text-primary mb-4 block">
-                        {score === 8 ? 'military_tech' : 'emoji_events'}
-                    </span>
-                    
+                    <span className="material-symbols-outlined text-6xl text-primary mb-4 block">{score === 8 ? 'military_tech' : 'emoji_events'}</span>
                     <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
                     <p className="text-gray-400 mb-6">{score === 8 ? "Perfect Score!" : "Good job!"}</p>
-
                     <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
                         <span className="material-symbols-outlined">share</span> Share Result
                     </button>
-                    
-                    {/* STATS (Alleen tonen als het VANDAAG is, anders heeft streak geen zin) */}
                     {isToday && (
                         <div className="grid grid-cols-2 gap-4 border-t border-[#22492f] py-6">
-                            <div>
-                                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p>
-                                <p className="text-2xl font-bold text-white flex items-center justify-center gap-1">
-                                    {userStats.streak} <span className="text-orange-500 text-lg">🔥</span>
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p>
-                                <p className="text-2xl font-bold text-white">{userStats.played}</p>
-                            </div>
+                            <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p><p className="text-2xl font-bold text-white flex items-center justify-center gap-1">{userStats.streak} <span className="text-orange-500 text-lg">🔥</span></p></div>
+                            <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p><p className="text-2xl font-bold text-white">{userStats.played}</p></div>
                         </div>
                     )}
-                    
                     {!isToday && (
                         <div className="border-t border-[#22492f] py-6">
-                             <button onClick={() => loadQuizForDate(new Date().toISOString().split('T')[0])} className="text-primary hover:underline text-sm font-bold">
-                                 Back to Today's Quiz
-                             </button>
+                             <button onClick={() => loadQuizForDate(new Date().toISOString().split('T')[0])} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
                         </div>
                     )}
-
-                    {/* COUNTDOWN TIMER */}
                     {isToday && (
                         <div className="border-t border-[#22492f] pt-4">
                             <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Next Challenge In</p>
@@ -469,68 +405,40 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             </div>
           )}
 
-          {/* FOOTER */}
           <div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
-            <p className="text-xs text-gray-500 opacity-80">
-              Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span>
-            </p>
+            <p className="text-xs text-gray-500 opacity-80">Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span></p>
             <div className="flex gap-4 text-xs text-gray-400">
               <a href="https://www.instagram.com/georgzimmermann_fa/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors hover:underline">Instagram</a>
               <span>•</span>
               <a href="mailto:hello@cyclingimposter.com" className="hover:text-primary transition-colors hover:underline">Contact & Bugs</a>
             </div>
-            <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500">
-                <span className="material-symbols-outlined text-[12px]">lock</span> Admin
-            </button>
+            <button onClick={onGoAdmin} className="mt-4 opacity-20 hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-gray-500"><span className="material-symbols-outlined text-[12px]">lock</span> Admin</button>
           </div>
         </div>
       </main>
 
-      {/* --- MODALS --- */}
-      
-      {/* 1. ARCHIEF MODAL */}
       {showArchiveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[80vh]">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary">history</span> Archive
-                    </h3>
-                    <button onClick={() => setShowArchiveModal(false)} className="text-text-muted hover:text-white">
-                         <span className="material-symbols-outlined">close</span>
-                    </button>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary">history</span> Archive</h3>
+                    <button onClick={() => setShowArchiveModal(false)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
-                
                 <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                     {availableDates.map(date => {
                         const isPlayed = hasPlayedDate(date);
                         const score = getScoreForDate(date);
                         const isCurrent = date === activeDate;
                         const isTodayDate = date === new Date().toISOString().split('T')[0];
-
                         return (
-                            <button 
-                                key={date}
-                                onClick={() => loadQuizForDate(date)}
-                                className={`w-full p-3 rounded-xl flex items-center justify-between border transition-all
-                                    ${isCurrent ? 'bg-primary/20 border-primary' : 'bg-[#102316] border-[#22492f] hover:border-primary/50'}
-                                `}
-                            >
+                            <button key={date} onClick={() => loadQuizForDate(date)} className={`w-full p-3 rounded-xl flex items-center justify-between border transition-all ${isCurrent ? 'bg-primary/20 border-primary' : 'bg-[#102316] border-[#22492f] hover:border-primary/50'}`}>
                                 <div className="flex flex-col items-start">
-                                    <span className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-white'}`}>
-                                        {date} {isTodayDate && '(Today)'}
-                                    </span>
+                                    <span className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-white'}`}>{date} {isTodayDate && '(Today)'}</span>
                                     <span className="text-[10px] text-gray-500">Daily Challenge</span>
                                 </div>
-                                
                                 {isPlayed ? (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-white">{score}/8</span>
-                                        <span className="material-symbols-outlined text-green-500 text-sm">check_circle</span>
-                                    </div>
-                                ) : (
-                                    <span className="text-xs text-gray-500 italic">Play</span>
-                                )}
+                                    <div className="flex items-center gap-2"><span className="text-xs font-bold text-white">{score}/8</span><span className="material-symbols-outlined text-green-500 text-sm">check_circle</span></div>
+                                ) : ( <span className="text-xs text-gray-500 italic">Play</span> )}
                             </button>
                         );
                     })}
@@ -539,88 +447,33 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
         </div>
       )}
 
-      {/* 2. RULES MODAL */}
       {showRulesModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                <button 
-                    onClick={() => setShowRulesModal(false)}
-                    className="absolute top-4 right-4 text-text-muted hover:text-white"
-                >
-                    <span className="material-symbols-outlined">close</span>
-                </button>
-                
+                <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 <div className="flex flex-col text-left">
-                    <div className="flex items-center gap-3 mb-6">
-                        <span className="material-symbols-outlined text-3xl text-primary">help</span>
-                        <h3 className="text-2xl font-bold text-white">How to Play</h3>
-                    </div>
-
+                    <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-3xl text-primary">help</span><h3 className="text-2xl font-bold text-white">How to Play</h3></div>
                     <ul className="space-y-4 text-sm text-gray-300">
-                        <li className="flex gap-3">
-                            <span className="font-bold text-primary">1.</span>
-                            <span>Read the <strong>Daily Statement</strong> carefully (e.g., "Won a TDF Stage").</span>
-                        </li>
-                        <li className="flex gap-3">
-                            <span className="font-bold text-primary">2.</span>
-                            <span><strong>Select</strong> the riders that MATCH the statement.</span>
-                        </li>
-                        <li className="flex gap-3">
-                            <span className="font-bold text-primary">3.</span>
-                            <span><strong>Ignore</strong> the imposters (riders who don't match).</span>
-                        </li>
-                        <li className="flex gap-3">
-                            <span className="font-bold text-primary">4.</span>
-                            <span>You get <strong>1 point</strong> for every correct decision (picking a correct rider OR avoiding an imposter).</span>
-                        </li>
+                        <li className="flex gap-3"><span className="font-bold text-primary">1.</span><span>Read the <strong>Daily Statement</strong>.</span></li>
+                        <li className="flex gap-3"><span className="font-bold text-primary">2.</span><span><strong>Select</strong> the matching riders.</span></li>
+                        <li className="flex gap-3"><span className="font-bold text-primary">3.</span><span><strong>Avoid</strong> the imposters.</span></li>
                     </ul>
-
-                    <div className="mt-8 pt-6 border-t border-[#22492f] text-center">
-                        <button 
-                            onClick={() => setShowRulesModal(false)}
-                            className="bg-primary text-background-dark font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform"
-                        >
-                            Got it!
-                        </button>
-                    </div>
+                    <div className="mt-8 pt-6 border-t border-[#22492f] text-center"><button onClick={() => setShowRulesModal(false)} className="bg-primary text-background-dark font-bold py-3 px-8 rounded-xl hover:scale-105 transition-transform">Got it!</button></div>
                 </div>
             </div>
         </div>
       )}
 
-      {/* 3. SUPPORT MODAL */}
       {showSupportModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                <button 
-                    onClick={() => setShowSupportModal(false)}
-                    className="absolute top-4 right-4 text-text-muted hover:text-white"
-                >
-                    <span className="material-symbols-outlined">close</span>
-                </button>
-                
+                <button onClick={() => setShowSupportModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 <div className="flex flex-col items-center text-center">
-                    <div className="bg-red-500/10 p-4 rounded-full mb-4">
-                        <span className="material-symbols-outlined text-4xl text-red-500">favorite</span>
-                    </div>
+                    <div className="bg-red-500/10 p-4 rounded-full mb-4"><span className="material-symbols-outlined text-4xl text-red-500">favorite</span></div>
                     <h3 className="text-2xl font-bold text-white mb-2">Enjoying the Game?</h3>
-                    <p className="text-gray-400 text-sm mb-6">
-                        Cycling Imposter is a free hobby project. If you'd like to fuel the developer's rides, a coffee is always appreciated! ☕️
-                    </p>
-
-                    <a 
-                        href="https://buymeacoffee.com/zimmerfann" 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="w-full bg-[#FFDD00] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all mb-3"
-                    >
-                        <span className="material-symbols-outlined">coffee</span>
-                        Buy me a Coffee
-                    </a>
-                    
-                    <p className="text-xs text-gray-600 mt-4">
-                        Thank you for playing & keep riding! 🚴
-                    </p>
+                    <p className="text-gray-400 text-sm mb-6">Cycling Imposter is a free hobby project. If you'd like to fuel the developer's rides, a coffee is always appreciated! ☕️</p>
+                    <a href="https://buymeacoffee.com/zimmerfann" target="_blank" rel="noreferrer" className="w-full bg-[#FFDD00] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all mb-3"><span className="material-symbols-outlined">coffee</span>Buy me a Coffee</a>
+                    <p className="text-xs text-gray-600 mt-4">Thank you for playing & keep riding! 🚴</p>
                 </div>
             </div>
         </div>
