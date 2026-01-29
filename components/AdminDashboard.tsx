@@ -54,17 +54,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // --- NIEUWE LOGICA VOOR DE GRAFIEK ---
+// --- AANGEPASTE LOGICA: POPULARITEIT PER QUIZ ---
   const fetchDailyPlayerStats = async () => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    // We halen nu ook created_at op om te zien WANNEER er gespeeld is
+    // STAP 1: We halen nu resultaten op gebaseerd op de QUIZ DATUM
+    // Dus: "Geef me alle scores voor de quizzen van de afgelopen 30 dagen"
+    // (Ongeacht wanneer ze gespeeld zijn, vandaag of vorige week)
     const { data, error } = await supabase
         .from('game_results')
         .select('quiz_date, created_at')
-        .gte('created_at', dateStr); // Let op: we kijken naar activiteit in de laatste 30 dagen
+        .gte('quiz_date', dateStr); // <--- AANGEPAST: Filteren op quiz_date i.p.v. created_at
 
     if (error) {
         console.error("Error loading graph data:", error);
@@ -74,7 +76,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     if (data) {
         const counts: Record<string, { onTime: number, late: number }> = {};
         
-        // Vul eerst alle dagen met 0
+        // Maak de lege bakjes voor de laatste 30 dagen
         for (let i = 0; i < 30; i++) {
              const d = new Date(thirtyDaysAgo);
              d.setDate(d.getDate() + i + 1);
@@ -83,16 +85,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         }
 
         data.forEach(r => {
-            // Wanneer is er gespeeld? (Alleen de datum, zonder tijd)
-            const playedAt = new Date(r.created_at).toISOString().split('T')[0];
+            // Wanneer is er FEITELIJK gespeeld? (Lokale tijd)
+            const playedAt = new Date(r.created_at).toLocaleDateString('en-CA');
             const quizDate = r.quiz_date;
 
-            // Als we deze speel-datum in onze grafiek hebben (laatste 30 dagen)
-            if (counts[playedAt]) {
+            // STAP 2: We stoppen het puntje in het bakje van de QUIZ DATUM
+            // (Niet de datum van vandaag)
+            if (counts[quizDate]) {
                 if (playedAt === quizDate) {
-                    counts[playedAt].onTime++;
+                    counts[quizDate].onTime++; // Groen: Iemand speelde hem op de dag zelf
                 } else {
-                    counts[playedAt].late++;
+                    counts[quizDate].late++;   // Oranje: Iemand haalde hem later in (maar telt mee voor DEZE quiz)
                 }
             }
         });
