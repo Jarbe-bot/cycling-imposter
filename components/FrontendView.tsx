@@ -87,7 +87,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-  // --- FIX: ALLEEN DATUMS OPHALEN TOT VANDAAG ---
+// Archive openen: Haal lijst van datums op
   const openArchive = async () => {
     setShowArchiveModal(true);
     const today = new Date().toISOString().split('T')[0];
@@ -95,11 +95,19 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     const { data } = await supabase
         .from('daily_quizzes')
         .select('date')
-        .lte('date', today) // <--- DEZE REGEL VOORKOMT TOEKOMSTIGE QUIZZEN
+        .lte('date', today) // Geen toekomst
         .order('date', { ascending: false });
     
     if (data) {
-        setAvailableDates(data.map(d => d.date));
+        // HIER FILTEREN WE DE TESTDATUMS ERUIT
+        // Voeg hier datums toe die je wilt verbergen
+        const hiddenDates = ['2026-01-12', '2026-01-13']; 
+        
+        const filteredList = data
+            .map(d => d.date)
+            .filter(date => !hiddenDates.includes(date));
+
+        setAvailableDates(filteredList);
     }
   };
 
@@ -136,7 +144,11 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     );
   };
 
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
+    // 1. EERST CHECKEN: Was deze al gespeeld?
+    // We checken dit VOORDAT we de nieuwe score opslaan, anders is het altijd true.
+    const isReplay = hasPlayedDate(activeDate);
+
     let currentScore = 0;
     activeQuiz.slots.forEach(slot => {
       const isSelected = selectedIds.includes(slot.cyclistId);
@@ -148,13 +160,26 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     setIsSubmitted(true);
     
     const today = new Date().toISOString().split('T')[0];
-    if (activeDate === today) {
+    
+    // Streak alleen updaten als het vandaag is én het geen replay is
+    if (activeDate === today && !isReplay) {
         updateStats(currentScore);
     }
     
+    // Sla het resultaat lokaal op (zodat het vinkje in het archief komt)
     saveDailyResult(activeDate, currentScore);
+    
     createCelebration();
 
+    // 2. DE BEVEILIGING:
+    // Als dit een replay is (iemand speelt een oude datum opnieuw die hij al had),
+    // dan stoppen we HIER. We sturen niets naar de database.
+    if (isReplay) {
+        console.log("Replay detected: Score not sent to database to prevent pollution.");
+        return; 
+    }
+
+    // Alleen als het ECHT de eerste keer is voor deze datum op dit device, sturen we data
     try {
         await supabase.from('game_results').insert({
             quiz_date: activeDate,
