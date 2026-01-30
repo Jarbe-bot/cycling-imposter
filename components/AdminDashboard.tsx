@@ -401,15 +401,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           <div className="xl:col-span-4 flex flex-col">
             <div className="bg-surface-dark rounded-xl p-6 border border-border-dark h-full">
               <div className="flex items-center justify-between mb-6">
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)))} className="p-2 hover:bg-input-dark rounded-full text-white">
-                  <span className="material-symbols-outlined">chevron_left</span>
-                </button>
-                <h3 className="text-white text-lg font-bold">
-                    {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                </h3>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)))} className="p-2 hover:bg-input-dark rounded-full text-white">
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </button>
+                {/* VORIGE MAAND KNOP */}
+<button 
+  onClick={() => {
+    const newDate = new Date(currentMonth);
+    newDate.setDate(1); // Veiligheid: Ga naar de 1e om "30 feb" problemen te voorkomen
+    newDate.setMonth(newDate.getMonth() - 1);
+    setCurrentMonth(newDate);
+  }} 
+  className="p-2 hover:bg-input-dark rounded-full text-white"
+>
+  <span className="material-symbols-outlined">chevron_left</span>
+</button>
+
+<h3 className="text-white text-lg font-bold">
+    {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+</h3>
+
+{/* VOLGENDE MAAND KNOP */}
+<button 
+  onClick={() => {
+    const newDate = new Date(currentMonth);
+    newDate.setDate(1); // Veiligheid: Ga naar de 1e
+    newDate.setMonth(newDate.getMonth() + 1);
+    setCurrentMonth(newDate);
+  }} 
+  className="p-2 hover:bg-input-dark rounded-full text-white"
+>
+  <span className="material-symbols-outlined">chevron_right</span>
+</button>
               </div>
               <div className="grid grid-cols-7 gap-1 mb-2 text-xs font-bold text-text-muted text-center">
                 {['S','M','T','W','T','F','S'].map(d => <div key={d} className="py-2">{d}</div>)}
