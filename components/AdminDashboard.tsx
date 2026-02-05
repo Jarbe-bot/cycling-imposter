@@ -23,15 +23,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [stats, setStats] = useState({ plays: 0, avgScore: 0, perfectScores: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  // NIEUW: GLOBAL STATS
+  // GLOBAL STATS
   const [quizDates, setQuizDates] = useState<string[]>([]);
-  // We houden nu bij: datum, aantal op tijd, aantal te laat
   const [dailyStats, setDailyStats] = useState<{date: string, onTime: number, late: number}[]>([]); 
 
   const [showPicker, setShowPicker] = useState<number | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // NIEUWE STATES VOOR VERPLAATSEN
+  const [showMoveModal, setShowMoveModal] = useState(false); 
+  const [moveTargetDate, setMoveTargetDate] = useState('');
 
   useEffect(() => {
     setLocalQuiz(quiz);
@@ -54,19 +57,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-// --- AANGEPASTE LOGICA: POPULARITEIT PER QUIZ ---
   const fetchDailyPlayerStats = async () => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    // STAP 1: We halen nu resultaten op gebaseerd op de QUIZ DATUM
-    // Dus: "Geef me alle scores voor de quizzen van de afgelopen 30 dagen"
-    // (Ongeacht wanneer ze gespeeld zijn, vandaag of vorige week)
     const { data, error } = await supabase
         .from('game_results')
         .select('quiz_date, created_at')
-        .gte('quiz_date', dateStr); // <--- AANGEPAST: Filteren op quiz_date i.p.v. created_at
+        .gte('quiz_date', dateStr);
 
     if (error) {
         console.error("Error loading graph data:", error);
@@ -76,7 +75,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     if (data) {
         const counts: Record<string, { onTime: number, late: number }> = {};
         
-        // Maak de lege bakjes voor de laatste 30 dagen
         for (let i = 0; i < 30; i++) {
              const d = new Date(thirtyDaysAgo);
              d.setDate(d.getDate() + i + 1);
@@ -85,17 +83,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         }
 
         data.forEach(r => {
-            // Wanneer is er FEITELIJK gespeeld? (Lokale tijd)
             const playedAt = new Date(r.created_at).toLocaleDateString('en-CA');
             const quizDate = r.quiz_date;
 
-            // STAP 2: We stoppen het puntje in het bakje van de QUIZ DATUM
-            // (Niet de datum van vandaag)
             if (counts[quizDate]) {
                 if (playedAt === quizDate) {
-                    counts[quizDate].onTime++; // Groen: Iemand speelde hem op de dag zelf
+                    counts[quizDate].onTime++; 
                 } else {
-                    counts[quizDate].late++;   // Oranje: Iemand haalde hem later in (maar telt mee voor DEZE quiz)
+                    counts[quizDate].late++;
                 }
             }
         });
@@ -200,6 +195,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
+  // --- NIEUW: QUIZ VERPLAATSEN ---
+  const handleMoveQuiz = async () => {
+    if (!moveTargetDate) return alert("Kies eerst een datum!");
+
+    // 1. Check of de doel-datum al een quiz heeft
+    const { data: existing } = await supabase
+      .from('daily_quizzes')
+      .select('id')
+      .eq('date', moveTargetDate)
+      .maybeSingle();
+
+    if (existing) {
+      return alert(`⚠️ Pas op: Er staat al een quiz op ${moveTargetDate}. Verwijder die eerst of kies een andere dag.`);
+    }
+
+    // 2. Update de datum in de database
+    const { error } = await supabase
+      .from('daily_quizzes')
+      .update({ date: moveTargetDate })
+      .eq('date', selectedDate);
+
+    if (error) {
+      console.error(error);
+      alert("Er ging iets mis bij het verplaatsen.");
+    } else {
+      // 3. Succes! Resetten en herladen
+      alert(`Quiz succesvol verplaatst naar ${moveTargetDate}! De huidige datum is nu vrij.`);
+      setShowMoveModal(false);
+      setMoveTargetDate('');
+      
+      // Update de lokale lijst van datums
+      setQuizDates(prev => {
+        const filtered = prev.filter(d => d !== selectedDate);
+        return [...filtered, moveTargetDate];
+      });
+
+      // Herlaad de huidige dag (die nu leeg zou moeten zijn)
+      fetchQuizForDate(selectedDate);
+    }
+  };
+
+  // --- NIEUW: QUIZ VERWIJDEREN ---
+  const handleDeleteQuiz = async () => {
+    if (!confirm(`Weet je zeker dat je de quiz van ${selectedDate} wilt verwijderen? Dit kan niet ongedaan gemaakt worden.`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // 1. Verwijder uit Supabase
+      const { error } = await supabase
+        .from('daily_quizzes')
+        .delete()
+        .eq('date', selectedDate);
+
+      if (error) throw error;
+
+      // 2. Update de lokale staat (haal het groene bolletje weg)
+      setQuizDates(prev => prev.filter(d => d !== selectedDate));
+
+      // 3. Herlaad de datum (zodat er een lege/nieuwe quiz verschijnt)
+      fetchQuizForDate(selectedDate);
+      
+      alert("Quiz verwijderd!");
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      alert("Fout bij verwijderen: " + error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleStatementChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setLocalQuiz(prev => ({ ...prev, statement: e.target.value }));
   };
@@ -262,7 +329,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     c.team.toLowerCase().includes(pickerSearch.toLowerCase())
   );
 
-  // Bereken max waarde (totaal van beide balken)
   const maxGraphValue = Math.max(...dailyStats.map(s => s.onTime + s.late), 5);
 
   return (
@@ -293,6 +359,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8">
         
+        {/* --- CONTROL BAR (TITEL & KNOPPEN) --- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-border-dark/50">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">
@@ -300,16 +367,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </h1>
             <p className="text-text-muted text-base">Selecteer een datum en bereid de quiz voor.</p>
           </div>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-primary text-background-dark px-8 py-3 rounded-full font-bold hover:bg-primary-dark transition-all shadow-neon flex items-center gap-2 disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined ${isSaving ? 'animate-spin' : ''}`}>
-                {isSaving ? 'sync' : 'publish'}
-            </span>
-            {isSaving ? 'Saving...' : `Publish to ${selectedDate}`}
-          </button>
+          
+          <div className="flex items-center gap-3">
+             {/* VERPLAATS KNOP (Alleen als quiz bestaat) */}
+             {quizDates.includes(selectedDate) && (
+                <button 
+                    onClick={() => setShowMoveModal(true)}
+                    className="bg-blue-600/20 text-blue-400 border border-blue-600/50 p-3 rounded-full hover:bg-blue-600/40 transition-colors"
+                    title="Verplaats quiz"
+                >
+                    <span className="material-symbols-outlined">calendar_month</span>
+                </button>
+             )}
+
+             {/* VERWIJDER KNOP (Alleen als quiz bestaat) */}
+             {quizDates.includes(selectedDate) && (
+                <button 
+                    onClick={handleDeleteQuiz}
+                    className="bg-red-500/20 text-red-400 border border-red-500/50 p-3 rounded-full hover:bg-red-500/40 transition-colors"
+                    title="Verwijder quiz"
+                >
+                    <span className="material-symbols-outlined">delete</span>
+                </button>
+             )}
+
+             {/* OPSLAAN KNOP */}
+             <button 
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-primary text-background-dark px-6 py-3 rounded-full font-bold hover:bg-primary-dark transition-all shadow-neon flex items-center gap-2 disabled:opacity-50"
+             >
+                <span className={`material-symbols-outlined ${isSaving ? 'animate-spin' : ''}`}>
+                    {isSaving ? 'sync' : 'publish'}
+                </span>
+                {isSaving ? 'Saving...' : (quizDates.includes(selectedDate) ? 'Update' : 'Publish')}
+             </button>
+          </div>
         </div>
 
         {/* ANALYTICS KAARTEN */}
@@ -343,7 +436,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </div>
         </div>
 
-        {/* NIEUWE GRAFIEK: STACKED (ON TIME VS LATE) */}
+        {/* GRAFIEK: STACKED (ON TIME VS LATE) */}
         <div className="bg-surface-dark p-6 rounded-xl border border-border-dark">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-white text-lg font-bold flex items-center gap-2">
@@ -358,15 +451,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             
             <div className="w-full h-32 flex items-end gap-1 md:gap-2">
                 {dailyStats.map((stat, index) => {
-                    // Totale hoogte berekenen
                     const total = stat.onTime + stat.late;
                     const totalHeightPercent = (total / maxGraphValue) * 100;
                     
-                    // Verhouding binnen de balk
                     const onTimePercent = total > 0 ? (stat.onTime / total) * 100 : 0;
                     const latePercent = total > 0 ? (stat.late / total) * 100 : 0;
 
-                    const showLabel = window.innerWidth < 768 ? index % 5 === 0 : index % 2 === 0;
                     const isToday = stat.date === new Date().toISOString().split('T')[0];
 
                     return (
@@ -377,14 +467,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                                 Catch Up: {stat.late}
                             </div>
                             
-                            {/* Stacked Bar Container */}
                             <div 
                                 style={{ height: `${Math.max(totalHeightPercent, 2)}%` }} 
                                 className="w-full rounded-t-sm flex flex-col-reverse overflow-hidden bg-[#22492f]/30"
                             >
-                                {/* On Time (Groen) */}
                                 <div style={{ height: `${onTimePercent}%` }} className={`w-full transition-all duration-500 ${isToday ? 'bg-primary shadow-neon' : 'bg-primary'}`}></div>
-                                {/* Late (Geel) */}
                                 <div style={{ height: `${latePercent}%` }} className="w-full bg-yellow-500 transition-all duration-500"></div>
                             </div>
                             
@@ -402,34 +489,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             <div className="bg-surface-dark rounded-xl p-6 border border-border-dark h-full">
               <div className="flex items-center justify-between mb-6">
                 {/* VORIGE MAAND KNOP */}
-<button 
-  onClick={() => {
-    const newDate = new Date(currentMonth);
-    newDate.setDate(1); // Veiligheid: Ga naar de 1e om "30 feb" problemen te voorkomen
-    newDate.setMonth(newDate.getMonth() - 1);
-    setCurrentMonth(newDate);
-  }} 
-  className="p-2 hover:bg-input-dark rounded-full text-white"
->
-  <span className="material-symbols-outlined">chevron_left</span>
-</button>
+                <button 
+                  onClick={() => {
+                    const newDate = new Date(currentMonth);
+                    newDate.setDate(1); 
+                    newDate.setMonth(newDate.getMonth() - 1);
+                    setCurrentMonth(newDate);
+                  }} 
+                  className="p-2 hover:bg-input-dark rounded-full text-white"
+                >
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
 
-<h3 className="text-white text-lg font-bold">
-    {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-</h3>
+                <h3 className="text-white text-lg font-bold">
+                    {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </h3>
 
-{/* VOLGENDE MAAND KNOP */}
-<button 
-  onClick={() => {
-    const newDate = new Date(currentMonth);
-    newDate.setDate(1); // Veiligheid: Ga naar de 1e
-    newDate.setMonth(newDate.getMonth() + 1);
-    setCurrentMonth(newDate);
-  }} 
-  className="p-2 hover:bg-input-dark rounded-full text-white"
->
-  <span className="material-symbols-outlined">chevron_right</span>
-</button>
+                {/* VOLGENDE MAAND KNOP */}
+                <button 
+                  onClick={() => {
+                    const newDate = new Date(currentMonth);
+                    newDate.setDate(1); 
+                    newDate.setMonth(newDate.getMonth() + 1);
+                    setCurrentMonth(newDate);
+                  }} 
+                  className="p-2 hover:bg-input-dark rounded-full text-white"
+                >
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
               </div>
               <div className="grid grid-cols-7 gap-1 mb-2 text-xs font-bold text-text-muted text-center">
                 {['S','M','T','W','T','F','S'].map(d => <div key={d} className="py-2">{d}</div>)}
@@ -539,6 +626,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </div>
         </div>
       </main>
+
+      {/* --- MODAL VOOR VERPLAATSEN --- */}
+      {showMoveModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-surface-dark border border-white/10 p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Quiz Verplaatsen</h3>
+            <p className="text-gray-400 mb-6">
+              Je verplaatst de quiz van <strong>{selectedDate}</strong>. 
+              Kies de nieuwe datum:
+            </p>
+            
+            <input 
+              type="date" 
+              value={moveTargetDate}
+              onChange={(e) => setMoveTargetDate(e.target.value)}
+              className="w-full bg-input-dark border border-white/10 rounded-lg p-3 text-white mb-6 focus:border-primary outline-none"
+            />
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowMoveModal(false)}
+                className="flex-1 py-3 text-gray-400 hover:text-white"
+              >
+                Annuleren
+              </button>
+              <button 
+                onClick={handleMoveQuiz}
+                disabled={!moveTargetDate}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Bevestigen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
