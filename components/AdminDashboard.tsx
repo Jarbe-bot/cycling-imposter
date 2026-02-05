@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Quiz, Cyclist } from '../types';
 import { supabase } from '../supabaseClient';
 import { GoogleGenAI } from "@google/genai";
@@ -35,6 +35,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   // NIEUWE STATES VOOR VERPLAATSEN
   const [showMoveModal, setShowMoveModal] = useState(false); 
   const [moveTargetDate, setMoveTargetDate] = useState('');
+  
+  // Ref voor de datum input om de kalender automatisch te openen
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocalQuiz(quiz);
@@ -49,6 +52,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     fetchQuizForDate(selectedDate);
     fetchStatsForDate(selectedDate);
   }, [selectedDate]);
+
+  // AUTO-OPEN KALENDER: Zodra de modal opent, forceer de picker
+  useEffect(() => {
+    if (showMoveModal && dateInputRef.current) {
+        // Even wachten tot de animatie/render klaar is
+        setTimeout(() => {
+            try {
+                dateInputRef.current?.showPicker();
+            } catch (e) {
+                console.log("Browser ondersteunt showPicker niet automatisch");
+            }
+        }, 100);
+    }
+  }, [showMoveModal]);
 
   const fetchQuizDates = async () => {
     const { data } = await supabase.from('daily_quizzes').select('date');
@@ -195,11 +212,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // --- NIEUW: QUIZ VERPLAATSEN ---
   const handleMoveQuiz = async () => {
     if (!moveTargetDate) return alert("Kies eerst een datum!");
 
-    // 1. Check of de doel-datum al een quiz heeft
     const { data: existing } = await supabase
       .from('daily_quizzes')
       .select('id')
@@ -210,7 +225,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       return alert(`⚠️ Pas op: Er staat al een quiz op ${moveTargetDate}. Verwijder die eerst of kies een andere dag.`);
     }
 
-    // 2. Update de datum in de database
     const { error } = await supabase
       .from('daily_quizzes')
       .update({ date: moveTargetDate })
@@ -220,23 +234,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       console.error(error);
       alert("Er ging iets mis bij het verplaatsen.");
     } else {
-      // 3. Succes! Resetten en herladen
       alert(`Quiz succesvol verplaatst naar ${moveTargetDate}! De huidige datum is nu vrij.`);
       setShowMoveModal(false);
       setMoveTargetDate('');
       
-      // Update de lokale lijst van datums
       setQuizDates(prev => {
         const filtered = prev.filter(d => d !== selectedDate);
         return [...filtered, moveTargetDate];
       });
 
-      // Herlaad de huidige dag (die nu leeg zou moeten zijn)
       fetchQuizForDate(selectedDate);
     }
   };
 
-  // --- NIEUW: QUIZ VERWIJDEREN ---
   const handleDeleteQuiz = async () => {
     if (!confirm(`Weet je zeker dat je de quiz van ${selectedDate} wilt verwijderen? Dit kan niet ongedaan gemaakt worden.`)) {
       return;
@@ -244,7 +254,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
     setIsSaving(true);
     try {
-      // 1. Verwijder uit Supabase
       const { error } = await supabase
         .from('daily_quizzes')
         .delete()
@@ -252,10 +261,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       if (error) throw error;
 
-      // 2. Update de lokale staat (haal het groene bolletje weg)
       setQuizDates(prev => prev.filter(d => d !== selectedDate));
-
-      // 3. Herlaad de datum (zodat er een lege/nieuwe quiz verschijnt)
       fetchQuizForDate(selectedDate);
       
       alert("Quiz verwijderd!");
@@ -359,17 +365,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8">
         
-        {/* --- CONTROL BAR (TITEL & KNOPPEN) --- */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-border-dark/50">
+        {/* --- STICKY CONTROL BAR (TITEL & KNOPPEN) --- */}
+        <div className="sticky top-[73px] z-40 bg-background-dark/95 backdrop-blur-md py-4 border-b border-white/10 -mx-6 px-6 lg:-mx-10 lg:px-10 -mt-2 shadow-xl flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">
-                Quiz Editor: {selectedDate}
+            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                {selectedDate}
             </h1>
-            <p className="text-text-muted text-base">Selecteer een datum en bereid de quiz voor.</p>
           </div>
           
           <div className="flex items-center gap-3">
-             {/* VERPLAATS KNOP (Alleen als quiz bestaat) */}
+             {/* VERPLAATS KNOP */}
              {quizDates.includes(selectedDate) && (
                 <button 
                     onClick={() => setShowMoveModal(true)}
@@ -380,7 +385,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </button>
              )}
 
-             {/* VERWIJDER KNOP (Alleen als quiz bestaat) */}
+             {/* VERWIJDER KNOP */}
              {quizDates.includes(selectedDate) && (
                 <button 
                     onClick={handleDeleteQuiz}
@@ -436,7 +441,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </div>
         </div>
 
-        {/* GRAFIEK: STACKED (ON TIME VS LATE) */}
+        {/* GRAFIEK */}
         <div className="bg-surface-dark p-6 rounded-xl border border-border-dark">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-white text-lg font-bold flex items-center gap-2">
@@ -488,7 +493,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           <div className="xl:col-span-4 flex flex-col">
             <div className="bg-surface-dark rounded-xl p-6 border border-border-dark h-full">
               <div className="flex items-center justify-between mb-6">
-                {/* VORIGE MAAND KNOP */}
                 <button 
                   onClick={() => {
                     const newDate = new Date(currentMonth);
@@ -505,7 +509,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h3>
 
-                {/* VOLGENDE MAAND KNOP */}
                 <button 
                   onClick={() => {
                     const newDate = new Date(currentMonth);
@@ -638,6 +641,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </p>
             
             <input 
+              ref={dateInputRef} // HIER ZIT DE REF VOOR DE AUTO-OPEN
               type="date" 
               value={moveTargetDate}
               onChange={(e) => setMoveTargetDate(e.target.value)}
