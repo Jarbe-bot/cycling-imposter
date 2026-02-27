@@ -74,50 +74,75 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
+  // --- AANGEPASTE LOGICA: BYPASS DE 1000-RIJEN LIMIET ---
   const fetchDailyPlayerStats = async () => {
+    // Een superveilige functie om de lokale datum als YYYY-MM-DD te krijgen (zonder tijdzone-stress)
+    const getLocalDateString = (d: Date) => {
+      const offset = d.getTimezoneOffset();
+      return new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+    };
+
+    const counts: Record<string, { onTime: number, late: number }> = {};
     const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+    const oldestDate = getLocalDateString(thirtyDaysAgo);
 
-    const { data, error } = await supabase
-        .from('game_results')
-        .select('quiz_date, created_at')
-        .gte('quiz_date', dateStr);
-
-    if (error) {
-        console.error("Error loading graph data:", error);
-        return;
+    // 1. Maak de lege bakjes voor de laatste 30 dagen
+    for (let i = 29; i >= 0; i--) {
+         const d = new Date();
+         d.setDate(d.getDate() - i);
+         counts[getLocalDateString(d)] = { onTime: 0, late: 0 };
     }
 
-    if (data) {
-        const counts: Record<string, { onTime: number, late: number }> = {};
-        
-        for (let i = 0; i < 30; i++) {
-             const d = new Date(thirtyDaysAgo);
-             d.setDate(d.getDate() + i + 1);
-             const key = d.toISOString().split('T')[0];
-             counts[key] = { onTime: 0, late: 0 };
+    // 2. HAAL ALLE DATA OP (In blokjes van 1000 om de limiet te omzeilen)
+    let allData: any[] = [];
+    let hasMore = true;
+    let offsetStart = 0;
+    const limit = 1000;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from('game_results')
+            .select('quiz_date, created_at')
+            .gte('quiz_date', oldestDate)
+            .range(offsetStart, offsetStart + limit - 1); // Paginatie: Haal rij 0-999, dan 1000-1999, etc.
+
+        if (error) {
+            console.error("Error loading graph data:", error);
+            break;
         }
 
-        data.forEach(r => {
-            const playedAt = new Date(r.created_at).toLocaleDateString('en-CA');
-            const quizDate = r.quiz_date;
-
-            if (counts[quizDate]) {
-                if (playedAt === quizDate) {
-                    counts[quizDate].onTime++; 
-                } else {
-                    counts[quizDate].late++;
-                }
+        if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            if (data.length < limit) {
+                hasMore = false; // Het laatste blokje was kleiner dan 1000, we hebben alles!
+            } else {
+                offsetStart += limit; // Schuif 1000 op voor de volgende zoekronde
             }
-        });
-
-        const statsArray = Object.entries(counts)
-            .map(([date, val]) => ({ date, onTime: val.onTime, late: val.late }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-        
-        setDailyStats(statsArray);
+        } else {
+            hasMore = false;
+        }
     }
+
+    // 3. Data verwerken in de bakjes
+    allData.forEach(r => {
+        const playedAt = getLocalDateString(new Date(r.created_at));
+        const quizDate = r.quiz_date;
+
+        if (counts[quizDate]) {
+            if (playedAt === quizDate) {
+                counts[quizDate].onTime++; 
+            } else {
+                counts[quizDate].late++;   
+            }
+        }
+    });
+
+    const statsArray = Object.entries(counts)
+        .map(([date, val]) => ({ date, onTime: val.onTime, late: val.late }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    
+    setDailyStats(statsArray);
   };
 
   const fetchStatsForDate = async (date: string) => {
