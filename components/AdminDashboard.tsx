@@ -372,7 +372,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // VERNIEUWDE SCREENSHOT FUNCTIE MET BASE64 PRE-LOADER
+  // --- VERNIEUWDE SCREENSHOT FUNCTIE ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
@@ -381,27 +381,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     if (btn) btn.innerText = "PREPARING IMAGE...";
 
     try {
-      // TRUCJE: Zet alle externe afbeeldingen om naar interne Base64 data om veiligheidsblokkades (CORS) te voorkomen
+      // 1. Zorg dat we écht wachten tot alle custom fonts (Lexend) zijn geladen door de browser
+      await document.fonts.ready;
+
+      // 2. Foto Pre-loader met Cache Buster
       const images = Array.from(element.querySelectorAll('img'));
       await Promise.all(images.map(async (img) => {
           if (img.src.startsWith('http') && !img.src.startsWith('data:')) {
               try {
-                  const res = await fetch(img.src, { mode: 'cors' });
+                  // Voeg een unieke timestamp toe om hardnekkige browser-caches te omzeilen
+                  const fetchUrl = img.src + (img.src.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
+                  const res = await fetch(fetchUrl, { mode: 'cors' });
                   const blob = await res.blob();
                   const base64 = await new Promise<string>((resolve) => {
                       const reader = new FileReader();
                       reader.onloadend = () => resolve(reader.result as string);
                       reader.readAsDataURL(blob);
                   });
-                  img.src = base64; // Vervang de link door de ruwe data
+                  img.src = base64; 
               } catch (e) {
-                  console.warn("Kon foto niet pre-loaden (waarschijnlijk geblokkeerd of stuk):", img.src);
+                  console.warn("Kon foto niet pre-loaden (waarschijnlijk geblokkeerd of ongeldige URL):", img.src);
               }
           }
       }));
 
-      // Wacht een kwart seconde zodat de browser de nieuwe data kan inladen
-      await new Promise(r => setTimeout(r, 250));
+      // Korte pauze voor de rendering engine
+      await new Promise(r => setTimeout(r, 500));
 
       if (btn) btn.innerText = "CAPTURING...";
 
@@ -453,16 +458,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       
       {/* --- VERBETERD VERBORGEN SCREENSHOT SJABLOON --- */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', overflow: 'hidden' }}>
-        {/* We gebruiken hier hardcoded Hex kleuren (#102216 etc) zodat html2canvas nooit in de war raakt met Tailwind variabelen */}
-        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col gap-12 border-0">
+        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col gap-12 border-0" style={{ fontFamily: "'Lexend', sans-serif" }}>
             
             {/* HEADER */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-white text-6xl font-extrabold tracking-tight">{selectedDate}</h1>
-                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2">The Daily Pro Cycling Challenge</p>
+                    <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
+                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
                 </div>
-                {/* Zelfgemaakt logo element dat altijd laadt */}
                 <div className="w-28 h-28 bg-[#183320] rounded-3xl border-4 border-[#0df259] flex items-center justify-center shadow-neon">
                    <span className="material-symbols-outlined text-[#0df259]" style={{ fontSize: '64px' }}>pedal_bike</span>
                 </div>
@@ -471,15 +474,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             {/* STATEMENT BOX */}
             {localQuiz.statement && (
                 <div className="bg-[#183320] p-10 rounded-3xl border border-[#2e5239]">
-                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-4 opacity-80">The Criteria:</p>
-                    {/* Tekst is kleiner (text-4xl) en heeft meer ademruimte (leading-snug) */}
-                    <p className="text-white text-4xl font-light leading-snug tracking-tight break-words">
+                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-4 opacity-80" style={{ lineHeight: '1.2' }}>The Criteria:</p>
+                    <p className="text-white text-4xl font-light tracking-tight break-words" style={{ lineHeight: '1.5' }}>
                         "{localQuiz.statement}"
                     </p>
                 </div>
             )}
 
-            {/* CYCLIST GRID (Ruimer opgezet) */}
+            {/* CYCLIST GRID (Tekst-clipping gefixt door truncate te verwijderen en padding toe te voegen) */}
             <div className="grid grid-cols-2 gap-x-10 gap-y-12">
                 {getShareCyclists().map((c, idx) => (
                     <div key={idx} className="flex items-center gap-8 bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
@@ -491,18 +493,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                                 <div className="w-32 h-32 rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
                             )}
                         </div>
-                        <div className="flex-1 overflow-hidden">
-                            <p className="text-white text-3xl font-bold truncate">{c.name}</p>
-                            <p className="text-[#90cba4] text-xl font-medium mt-2 truncate">{c.team}</p>
+                        {/* We hebben overflow-hidden en truncate weggehaald, en pb-2 (padding-bottom) toegevoegd voor veilige weergave */}
+                        <div className="flex-1">
+                            <p className="text-white text-3xl font-bold pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.name}</p>
+                            <p className="text-[#90cba4] text-xl font-medium mt-1 pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.team}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* FOOTER */}
-            <div className="mt-10 pt-12 border-t border-[#2e5239] text-center">
-                <p className="text-white text-3xl font-light">Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
-                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase">CYCLINGIMPOSTER.COM</p>
+            <div className="mt-10 pt-12 border-t border-[#2e5239] text-center pb-4">
+                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
+                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
       </div>
