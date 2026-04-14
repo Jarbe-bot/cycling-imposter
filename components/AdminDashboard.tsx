@@ -3,6 +3,7 @@ import { Quiz, Cyclist } from '../types';
 import { supabase } from '../supabaseClient';
 import { GoogleGenAI } from "@google/genai";
 import { INITIAL_QUIZ } from '../constants';
+import html2canvas from 'html2canvas'; // NIEUW: Screenshot tool
 
 interface AdminDashboardProps {
   quiz: Quiz;
@@ -23,7 +24,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [stats, setStats] = useState({ plays: 0, avgScore: 0, perfectScores: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  // GLOBAL STATS
   const [quizDates, setQuizDates] = useState<string[]>([]);
   const [dailyStats, setDailyStats] = useState<{date: string, onTime: number, late: number}[]>([]); 
 
@@ -32,12 +32,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // NIEUWE STATES VOOR VERPLAATSEN
   const [showMoveModal, setShowMoveModal] = useState(false); 
   const [moveTargetDate, setMoveTargetDate] = useState('');
   
-  // Ref voor de datum input om de kalender automatisch te openen
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  // NIEUW: Social Media States
+  const [socialCaption, setSocialCaption] = useState('');
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
 
   useEffect(() => {
     setLocalQuiz(quiz);
@@ -53,10 +55,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     fetchStatsForDate(selectedDate);
   }, [selectedDate]);
 
-  // AUTO-OPEN KALENDER: Zodra de modal opent, forceer de picker
   useEffect(() => {
     if (showMoveModal && dateInputRef.current) {
-        // Even wachten tot de animatie/render klaar is
         setTimeout(() => {
             try {
                 dateInputRef.current?.showPicker();
@@ -74,9 +74,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // --- AANGEPASTE LOGICA: BYPASS DE 1000-RIJEN LIMIET ---
   const fetchDailyPlayerStats = async () => {
-    // Een superveilige functie om de lokale datum als YYYY-MM-DD te krijgen (zonder tijdzone-stress)
     const getLocalDateString = (d: Date) => {
       const offset = d.getTimezoneOffset();
       return new Date(d.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
@@ -87,14 +85,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
     const oldestDate = getLocalDateString(thirtyDaysAgo);
 
-    // 1. Maak de lege bakjes voor de laatste 30 dagen
     for (let i = 29; i >= 0; i--) {
          const d = new Date();
          d.setDate(d.getDate() - i);
          counts[getLocalDateString(d)] = { onTime: 0, late: 0 };
     }
 
-    // 2. HAAL ALLE DATA OP (In blokjes van 1000 om de limiet te omzeilen)
     let allData: any[] = [];
     let hasMore = true;
     let offsetStart = 0;
@@ -105,7 +101,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             .from('game_results')
             .select('quiz_date, created_at')
             .gte('quiz_date', oldestDate)
-            .range(offsetStart, offsetStart + limit - 1); // Paginatie: Haal rij 0-999, dan 1000-1999, etc.
+            .range(offsetStart, offsetStart + limit - 1);
 
         if (error) {
             console.error("Error loading graph data:", error);
@@ -115,16 +111,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         if (data && data.length > 0) {
             allData = [...allData, ...data];
             if (data.length < limit) {
-                hasMore = false; // Het laatste blokje was kleiner dan 1000, we hebben alles!
+                hasMore = false;
             } else {
-                offsetStart += limit; // Schuif 1000 op voor de volgende zoekronde
+                offsetStart += limit;
             }
         } else {
             hasMore = false;
         }
     }
 
-    // 3. Data verwerken in de bakjes
     allData.forEach(r => {
         const playedAt = getLocalDateString(new Date(r.created_at));
         const quizDate = r.quiz_date;
@@ -323,7 +318,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     setIsGenerating(true);
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-      if (!apiKey) return alert("Geen API Key");
+      if (!apiKey) return alert("Geen API Key ingesteld in je .env bestand!");
 
       const ai = new GoogleGenAI({ apiKey });
       const currentRiders = localQuiz.slots.map(s => cyclists.find(c => c.id === s.cyclistId)?.name).join(', ');
@@ -337,10 +332,67 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         const text = response.response.text().replace(/"/g, '').trim();
         setLocalQuiz(prev => ({ ...prev, statement: text }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI failed:", error);
+      alert("AI fout: " + error.message);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // NIEUW: Genereer de caption voor social media
+  const generateSocialCaption = async () => {
+    if (!localQuiz.statement) return alert("Genereer of typ eerst een statement!");
+    
+    setIsGeneratingCaption(true);
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+      if (!apiKey) return alert("Geen API Key gevonden");
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const prompt = `Write a short, engaging social media caption (for X/Twitter and Instagram) to promote today's daily puzzle on 'Cycling Imposter'. 
+      The theme/statement of today is: "${localQuiz.statement}". 
+      Do NOT reveal the answer or the riders' names. Tease the audience and challenge them to find the fake rider.
+      Include 2-3 relevant hashtags like #CyclingImposter #ProCycling. 
+      End the caption with: "Play now: https://www.cyclingimposter.com"`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash", 
+        contents: prompt,
+      });
+
+      if (response.response.text()) {
+        const text = response.response.text().replace(/"/g, '').trim();
+        setSocialCaption(text);
+      }
+    } catch (error: any) {
+      console.error("AI Caption failed:", error);
+      alert("Caption genereren mislukt: " + error.message);
+    } finally {
+      setIsGeneratingCaption(false);
+    }
+  };
+
+  // NIEUW: Maak de screenshot
+  const downloadShareImage = async () => {
+    const element = document.getElementById('quiz-share-area');
+    if (!element) return;
+
+    try {
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#102216', // Dezelfde kleur als background-dark
+        scale: 2, // Retina kwaliteit
+        useCORS: true, // ZEKER NODIG voor de renner foto's!
+      });
+      
+      const link = document.createElement('a');
+      link.download = `cycling-imposter-${selectedDate}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error("Screenshot failed:", err);
+      alert("Oeps, screenshot maken mislukt. Bekijk de console.");
     }
   };
 
@@ -390,7 +442,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8">
         
-        {/* --- STICKY CONTROL BAR (TITEL & KNOPPEN) --- */}
+        {/* --- STICKY CONTROL BAR --- */}
         <div className="sticky top-[73px] z-40 bg-background-dark/95 backdrop-blur-md py-4 border-b border-white/10 -mx-6 px-6 lg:-mx-10 lg:px-10 -mt-2 shadow-xl flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
@@ -399,7 +451,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </div>
           
           <div className="flex items-center gap-3">
-             {/* VERPLAATS KNOP */}
              {quizDates.includes(selectedDate) && (
                 <button 
                     onClick={() => setShowMoveModal(true)}
@@ -410,7 +461,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </button>
              )}
 
-             {/* VERWIJDER KNOP */}
              {quizDates.includes(selectedDate) && (
                 <button 
                     onClick={handleDeleteQuiz}
@@ -421,7 +471,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </button>
              )}
 
-             {/* OPSLAAN KNOP */}
              <button 
                 onClick={handleSave}
                 disabled={isSaving}
@@ -580,6 +629,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
           <div className="xl:col-span-8 flex flex-col">
             <div className={`bg-surface-dark rounded-xl p-6 md:p-8 border border-border-dark flex-1 flex flex-col relative overflow-hidden transition-opacity ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+              
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3 text-primary">
                   <span className="material-symbols-outlined">edit_note</span>
@@ -600,6 +650,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 value={localQuiz.statement}
                 onChange={handleStatementChange}
               />
+
+              {/* NIEUW: SOCIAL MEDIA TOOLKIT */}
+              <div className="mt-6 pt-6 border-t border-border-dark">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-end justify-between mb-3">
+                  <div className="flex-1 w-full">
+                    <h4 className="text-sm font-bold text-gray-400 flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-base">share</span>
+                        Social Media Caption
+                    </h4>
+                    <div className="flex gap-2">
+                        <textarea 
+                            className="flex-1 bg-input-dark border border-border-dark rounded-lg text-white text-sm p-3 focus:border-primary outline-none resize-none"
+                            rows={3}
+                            value={socialCaption}
+                            onChange={(e) => setSocialCaption(e.target.value)}
+                            placeholder="Klik op generate of typ je eigen caption..."
+                        />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
+                    <button 
+                        onClick={generateSocialCaption}
+                        disabled={isGeneratingCaption || !localQuiz.statement}
+                        className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-bold hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                    >
+                        <span className={`material-symbols-outlined text-sm ${isGeneratingCaption ? 'animate-spin' : ''}`}>auto_awesome</span>
+                        {isGeneratingCaption ? 'GENERATING...' : 'GENERATE TEXT'}
+                    </button>
+                    <button 
+                        onClick={downloadShareImage}
+                        className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold hover:bg-purple-500/20 transition-all"
+                    >
+                        <span className="material-symbols-outlined text-sm">photo_camera</span>
+                        DOWNLOAD IMAGE
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -611,47 +701,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                     Cyclist Grid
                 </h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            {localQuiz.slots.map((slot, idx) => {
-                const cyclist = cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown', id: '?', country: '', status: 'active' };
-                return (
-                <div key={idx} className={`group relative flex flex-col gap-4 rounded-2xl bg-surface-dark p-5 border border-border-dark transition-all duration-300 ${slot.isImposter ? 'hover:border-red-500/50' : 'hover:border-primary/50'}`}>
-                    <div className="absolute top-4 left-4 text-xs font-bold text-text-muted bg-input-dark px-2 py-1 rounded">#{idx + 1}</div>
-                    <div className="relative mx-auto mt-2">
-                        <div className={`size-28 rounded-full bg-cover bg-center border-4 transition-all ${slot.isImposter ? 'border-input-dark grayscale opacity-80' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]'}`} style={{ backgroundImage: `url('${cyclist.imageUrl}')` }}>
-                            <button onClick={() => setShowPicker(idx)} className="absolute bottom-0 right-0 p-1.5 bg-input-dark rounded-full border border-border-dark cursor-pointer hover:bg-primary hover:text-background-dark transition-colors text-white z-10"><span className="material-symbols-outlined text-sm block">sync</span></button>
+            
+            {/* NIEUW: DIT IS HET GEBIED DAT GEFOTOGRAFEERD WORDT */}
+            <div id="quiz-share-area" className="p-8 bg-background-dark rounded-3xl border border-white/5 relative">
+                {/* Alleen zichtbaar op de screenshot, voor een beetje branding */}
+                <div className="absolute top-4 right-6 opacity-20 text-white font-bold tracking-widest text-sm uppercase">Daily Challenge</div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
+                {localQuiz.slots.map((slot, idx) => {
+                    const cyclist = cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown', id: '?', country: '', status: 'active' };
+                    return (
+                    <div key={idx} className={`group relative flex flex-col gap-4 rounded-2xl bg-surface-dark p-5 border border-border-dark transition-all duration-300 ${slot.isImposter ? 'hover:border-red-500/50' : 'hover:border-primary/50'}`}>
+                        <div className="absolute top-4 left-4 text-xs font-bold text-text-muted bg-input-dark px-2 py-1 rounded">#{idx + 1}</div>
+                        <div className="relative mx-auto mt-2">
+                            {/* crossorigin="anonymous" helpt html2canvas om de afbeeldingen correct te laden */}
+                            <div className={`size-28 rounded-full bg-cover bg-center border-4 transition-all ${slot.isImposter ? 'border-input-dark grayscale opacity-80' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]'}`} style={{ backgroundImage: `url('${cyclist.imageUrl}')` }}>
+                                <button onClick={() => setShowPicker(idx)} className="absolute bottom-0 right-0 p-1.5 bg-input-dark rounded-full border border-border-dark cursor-pointer hover:bg-primary hover:text-background-dark transition-colors text-white z-10" data-html2canvas-ignore="true"><span className="material-symbols-outlined text-sm block">sync</span></button>
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex-1 text-center">
-                        <p className="text-white font-bold truncate">{cyclist.name}</p>
-                        <p className="text-xs text-text-muted truncate">{cyclist.team}</p>
-                    </div>
-                    <div className="pt-2 border-t border-border-dark">
-                    <div onClick={() => toggleSlotImposter(cyclist.id)} className={`cursor-pointer p-2 rounded-lg flex items-center justify-between transition-colors ${slot.isImposter ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
-                        <span className="text-xs font-bold uppercase">{slot.isImposter ? 'Imposter' : 'Correct'}</span>
-                        <div className={`w-8 h-4 rounded-full relative transition-colors ${slot.isImposter ? 'bg-red-500' : 'bg-green-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${slot.isImposter ? 'right-0.5' : 'left-0.5'}`}></div></div>
-                    </div>
-                    </div>
-                    {showPicker === idx && (
-                    <div className="absolute inset-0 z-20 bg-background-dark flex flex-col rounded-2xl border border-primary overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex flex-col bg-primary/10 border-b border-primary/20">
-                            <div className="flex items-center justify-between p-3 pb-2"><h4 className="text-xs font-bold uppercase text-primary">Select Replacement</h4><button onClick={() => setShowPicker(null)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button></div>
-                            <div className="px-3 pb-3"><input autoFocus className="w-full bg-background-dark text-white text-xs p-2 rounded border border-border-dark focus:border-primary focus:outline-none" placeholder="Search cyclist..." value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} /></div>
+                        <div className="flex-1 text-center">
+                            <p className="text-white font-bold truncate">{cyclist.name}</p>
+                            <p className="text-xs text-text-muted truncate">{cyclist.team}</p>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
-                            {filteredPickerCyclists.length > 0 ? (filteredPickerCyclists.map(c => (
-                                    <button key={c.id} onClick={() => changeCyclistInSlot(idx, c.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-dark transition-colors text-left group/item">
-                                        <img src={c.imageUrl} className="size-8 rounded-full object-cover border border-border-dark group-hover/item:border-primary" />
-                                        <div className="overflow-hidden"><p className="text-xs font-bold text-white truncate">{c.name}</p><p className="text-xs text-text-muted truncate">{c.team}</p></div>
-                                    </button>
-                            ))) : (<p className="text-center text-xs text-text-muted mt-4">No riders found.</p>)}
+                        {/* Dit knopje wordt genegeerd op de screenshot (ziet er lelijk uit) */}
+                        <div className="pt-2 border-t border-border-dark" data-html2canvas-ignore="true">
+                        <div onClick={() => toggleSlotImposter(cyclist.id)} className={`cursor-pointer p-2 rounded-lg flex items-center justify-between transition-colors ${slot.isImposter ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
+                            <span className="text-xs font-bold uppercase">{slot.isImposter ? 'Imposter' : 'Correct'}</span>
+                            <div className={`w-8 h-4 rounded-full relative transition-colors ${slot.isImposter ? 'bg-red-500' : 'bg-green-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${slot.isImposter ? 'right-0.5' : 'left-0.5'}`}></div></div>
                         </div>
+                        </div>
+                        {showPicker === idx && (
+                        <div className="absolute inset-0 z-20 bg-background-dark flex flex-col rounded-2xl border border-primary overflow-hidden animate-in fade-in zoom-in-95 duration-200" data-html2canvas-ignore="true">
+                            <div className="flex flex-col bg-primary/10 border-b border-primary/20">
+                                <div className="flex items-center justify-between p-3 pb-2"><h4 className="text-xs font-bold uppercase text-primary">Select Replacement</h4><button onClick={() => setShowPicker(null)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button></div>
+                                <div className="px-3 pb-3"><input autoFocus className="w-full bg-background-dark text-white text-xs p-2 rounded border border-border-dark focus:border-primary focus:outline-none" placeholder="Search cyclist..." value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} /></div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+                                {filteredPickerCyclists.length > 0 ? (filteredPickerCyclists.map(c => (
+                                        <button key={c.id} onClick={() => changeCyclistInSlot(idx, c.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-dark transition-colors text-left group/item">
+                                            <img src={c.imageUrl} crossOrigin="anonymous" className="size-8 rounded-full object-cover border border-border-dark group-hover/item:border-primary" />
+                                            <div className="overflow-hidden"><p className="text-xs font-bold text-white truncate">{c.name}</p><p className="text-xs text-text-muted truncate">{c.team}</p></div>
+                                        </button>
+                                ))) : (<p className="text-center text-xs text-text-muted mt-4">No riders found.</p>)}
+                            </div>
+                        </div>
+                        )}
                     </div>
-                    )}
+                    );
+                })}
                 </div>
-                );
-            })}
+                
+                {/* Watermerk voor de screenshot */}
+                <div className="mt-8 text-center">
+                    <p className="text-primary font-bold text-xl tracking-widest uppercase opacity-80">CYCLINGIMPOSTER.COM</p>
+                </div>
             </div>
+            {/* EINDE SCREENSHOT GEBIED */}
         </div>
       </main>
 
@@ -666,7 +771,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </p>
             
             <input 
-              ref={dateInputRef} // HIER ZIT DE REF VOOR DE AUTO-OPEN
+              ref={dateInputRef}
               type="date" 
               value={moveTargetDate}
               onChange={(e) => setMoveTargetDate(e.target.value)}
