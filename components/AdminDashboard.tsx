@@ -3,7 +3,7 @@ import { Quiz, Cyclist } from '../types';
 import { supabase } from '../supabaseClient';
 import { GoogleGenAI } from "@google/genai";
 import { INITIAL_QUIZ } from '../constants';
-import html2canvas from 'html2canvas'; // NIEUW: Screenshot tool
+import html2canvas from 'html2canvas';
 
 interface AdminDashboardProps {
   quiz: Quiz;
@@ -37,7 +37,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  // NIEUW: Social Media States
   const [socialCaption, setSocialCaption] = useState('');
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
 
@@ -340,7 +339,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // NIEUW: Genereer de caption voor social media
   const generateSocialCaption = async () => {
     if (!localQuiz.statement) return alert("Genereer of typ eerst een statement!");
     
@@ -374,20 +372,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // NIEUW: Maak de screenshot
+  // NIEUW: De verbeterde screenshot-functie targeting van het verborgen sjabloon
   const downloadShareImage = async () => {
-    const element = document.getElementById('quiz-share-area');
-    if (!element) return;
+    // We targeten nu het verborgen sjabloon, niet de actieve werkplek!
+    const element = document.getElementById('hidden-share-template');
+    if (!element) return alert("Sjabloon niet gevonden!");
+
+    // Even wachten zodat de foto's geladen kunnen worden
+    await new Promise(r => setTimeout(r, 500));
 
     try {
       const canvas = await html2canvas(element, {
         backgroundColor: '#102216', // Dezelfde kleur als background-dark
-        scale: 2, // Retina kwaliteit
-        useCORS: true, // ZEKER NODIG voor de renner foto's!
+        scale: 2, // Hoge resolutie
+        useCORS: true, 
+        logging: false, // Zet dit aan voor debugging
       });
       
       const link = document.createElement('a');
-      link.download = `cycling-imposter-${selectedDate}.png`;
+      link.download = `cycling-imposter-${selectedDate}-share.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
@@ -414,8 +417,70 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
   const maxGraphValue = Math.max(...dailyStats.map(s => s.onTime + s.late), 5);
 
+  // Hulppunten voor de share grid
+  const getShareCyclists = () => {
+    return localQuiz.slots.map(slot => {
+        return cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown' };
+    });
+  };
+
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
+      
+      {/* --- VERBORGEN SCREENSHOT SJABLOON (Alleen voor html2canvas) --- */}
+      {/* We gebruiken absolute positionering om het buiten het scherm te plaatsen,
+          maar geven het vaste afmetingen (1080px breed). display: none werkt niet voor html2canvas. */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', overflow: 'hidden' }}>
+        <div id="hidden-share-template" className="bg-background-dark p-12 flex flex-col gap-10 border border-white/10 rounded-2xl">
+            {/* HEADER */}
+            <div className="flex items-center justify-between gap-6">
+                <div>
+                    <h1 className="text-white text-5xl font-extrabold tracking-tight">{selectedDate}</h1>
+                    <p className="text-text-muted text-sm uppercase tracking-widest font-bold mt-1">THE DAILY PRO CYCLING CHALLENGE</p>
+                </div>
+                {/* Een klein og-image element (zorg dat je er eentje hebt in je public folder!) */}
+                <img src="/og-image.jpg" className="w-24 h-24 rounded-2xl object-cover border-4 border-primary shadow-neon opacity-70" alt="Logo" />
+            </div>
+
+            {/* STATEMENT BOX */}
+            {localQuiz.statement && (
+                <div className="bg-input-dark p-8 rounded-2xl border border-border-dark">
+                    <p className="text-primary text-xl font-bold uppercase tracking-widest mb-2 opacity-50">THE CRITERIA:</p>
+                    <p className="text-white text-5xl font-light leading-relaxed tracking-tight break-words">
+                        "{localQuiz.statement}"
+                    </p>
+                </div>
+            )}
+
+            {/* CYCLIST GRID (Compact vertical layout: 2 cols x 4 rows) */}
+            <div className="grid grid-cols-2 gap-8">
+                {getShareCyclists().map((c, idx) => (
+                    <div key={idx} className="flex items-center gap-6 bg-surface-dark p-6 rounded-2xl border border-border-dark">
+                        <div className="relative">
+                            <span className="absolute -top-3 -left-3 size-8 flex items-center justify-center bg-input-dark text-white rounded-full text-sm font-bold border border-border-dark z-10">#{idx + 1}</span>
+                            {c.imageUrl ? (
+                                <img src={c.imageUrl} crossOrigin="anonymous" className="w-28 h-28 rounded-full object-cover border-4 border-primary" alt={c.name} />
+                            ) : (
+                                <div className="w-28 h-28 rounded-full border-4 border-dashed border-input-dark flex items-center justify-center text-text-muted text-5xl font-black">?</div>
+                            )}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-white text-2xl font-bold truncate">{c.name}</p>
+                            <p className="text-text-muted text-sm font-medium mt-1 truncate">{c.team}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* FOOTER */}
+            <div className="mt-6 pt-10 border-t border-white/10 text-center">
+                <p className="text-white text-2xl font-light">Can you spot the <strong className="text-red-400 font-bold">Imposter</strong> among them?</p>
+                <p className="text-primary text-4xl font-black mt-4 tracking-widest uppercase">CYCLINGIMPOSTER.COM</p>
+            </div>
+        </div>
+      </div>
+      {/* --- EINDE VERBORGEN SJABLOON --- */}
+
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border-dark bg-background-dark/80 backdrop-blur-md px-4 py-4 lg:px-10">
         <div className="flex items-center gap-4 text-white">
           <div className="flex items-center justify-center bg-primary rounded-full size-10 text-background-dark shadow-neon flex-shrink-0">
@@ -440,7 +505,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8">
+      <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8 relative z-10">
         
         {/* --- STICKY CONTROL BAR --- */}
         <div className="sticky top-[73px] z-40 bg-background-dark/95 backdrop-blur-md py-4 border-b border-white/10 -mx-6 px-6 lg:-mx-10 lg:px-10 -mt-2 shadow-xl flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -651,7 +716,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 onChange={handleStatementChange}
               />
 
-              {/* NIEUW: SOCIAL MEDIA TOOLKIT */}
+              {/* SOCIAL MEDIA TOOLKIT */}
               <div className="mt-6 pt-6 border-t border-border-dark">
                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-end justify-between mb-3">
                   <div className="flex-1 w-full">
@@ -679,12 +744,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                         <span className={`material-symbols-outlined text-sm ${isGeneratingCaption ? 'animate-spin' : ''}`}>auto_awesome</span>
                         {isGeneratingCaption ? 'GENERATING...' : 'GENERATE TEXT'}
                     </button>
+                    {/* NIEUW: De verbeterde download-knop targeting het verborgen sjabloon */}
                     <button 
                         onClick={downloadShareImage}
                         className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold hover:bg-purple-500/20 transition-all"
                     >
                         <span className="material-symbols-outlined text-sm">photo_camera</span>
-                        DOWNLOAD IMAGE
+                        DOWNLOAD SHARE IMAGE
                     </button>
                   </div>
                 </div>
@@ -694,6 +760,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </div>
         </div>
 
+        {/* ACTIEVE WERKPLEK (Blijft zoals het was, voor interactie) */}
         <div className={`transition-opacity ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center justify-between mt-4 mb-6">
                 <h3 className="text-white text-xl font-bold leading-tight flex items-center gap-3">
@@ -702,61 +769,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </h3>
             </div>
             
-            {/* NIEUW: DIT IS HET GEBIED DAT GEFOTOGRAFEERD WORDT */}
-            <div id="quiz-share-area" className="p-8 bg-background-dark rounded-3xl border border-white/5 relative">
-                {/* Alleen zichtbaar op de screenshot, voor een beetje branding */}
-                <div className="absolute top-4 right-6 opacity-20 text-white font-bold tracking-widest text-sm uppercase">Daily Challenge</div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
-                {localQuiz.slots.map((slot, idx) => {
-                    const cyclist = cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown', id: '?', country: '', status: 'active' };
-                    return (
-                    <div key={idx} className={`group relative flex flex-col gap-4 rounded-2xl bg-surface-dark p-5 border border-border-dark transition-all duration-300 ${slot.isImposter ? 'hover:border-red-500/50' : 'hover:border-primary/50'}`}>
-                        <div className="absolute top-4 left-4 text-xs font-bold text-text-muted bg-input-dark px-2 py-1 rounded">#{idx + 1}</div>
-                        <div className="relative mx-auto mt-2">
-                            {/* crossorigin="anonymous" helpt html2canvas om de afbeeldingen correct te laden */}
-                            <div className={`size-28 rounded-full bg-cover bg-center border-4 transition-all ${slot.isImposter ? 'border-input-dark grayscale opacity-80' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]'}`} style={{ backgroundImage: `url('${cyclist.imageUrl}')` }}>
-                                <button onClick={() => setShowPicker(idx)} className="absolute bottom-0 right-0 p-1.5 bg-input-dark rounded-full border border-border-dark cursor-pointer hover:bg-primary hover:text-background-dark transition-colors text-white z-10" data-html2canvas-ignore="true"><span className="material-symbols-outlined text-sm block">sync</span></button>
-                            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            {localQuiz.slots.map((slot, idx) => {
+                const cyclist = cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown', id: '?', country: '', status: 'active' };
+                return (
+                <div key={idx} className={`group relative flex flex-col gap-4 rounded-2xl bg-surface-dark p-5 border border-border-dark transition-all duration-300 ${slot.isImposter ? 'hover:border-red-500/50' : 'hover:border-primary/50'}`}>
+                    <div className="absolute top-4 left-4 text-xs font-bold text-text-muted bg-input-dark px-2 py-1 rounded">#{idx + 1}</div>
+                    <div className="relative mx-auto mt-2">
+                        <div className={`size-28 rounded-full bg-cover bg-center border-4 transition-all ${slot.isImposter ? 'border-input-dark grayscale opacity-80' : 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]'}`} style={{ backgroundImage: `url('${cyclist.imageUrl}')` }}>
+                            <button onClick={() => setShowPicker(idx)} className="absolute bottom-0 right-0 p-1.5 bg-input-dark rounded-full border border-border-dark cursor-pointer hover:bg-primary hover:text-background-dark transition-colors text-white z-10"><span className="material-symbols-outlined text-sm block">sync</span></button>
                         </div>
-                        <div className="flex-1 text-center">
-                            <p className="text-white font-bold truncate">{cyclist.name}</p>
-                            <p className="text-xs text-text-muted truncate">{cyclist.team}</p>
-                        </div>
-                        {/* Dit knopje wordt genegeerd op de screenshot (ziet er lelijk uit) */}
-                        <div className="pt-2 border-t border-border-dark" data-html2canvas-ignore="true">
-                        <div onClick={() => toggleSlotImposter(cyclist.id)} className={`cursor-pointer p-2 rounded-lg flex items-center justify-between transition-colors ${slot.isImposter ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
-                            <span className="text-xs font-bold uppercase">{slot.isImposter ? 'Imposter' : 'Correct'}</span>
-                            <div className={`w-8 h-4 rounded-full relative transition-colors ${slot.isImposter ? 'bg-red-500' : 'bg-green-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${slot.isImposter ? 'right-0.5' : 'left-0.5'}`}></div></div>
-                        </div>
-                        </div>
-                        {showPicker === idx && (
-                        <div className="absolute inset-0 z-20 bg-background-dark flex flex-col rounded-2xl border border-primary overflow-hidden animate-in fade-in zoom-in-95 duration-200" data-html2canvas-ignore="true">
-                            <div className="flex flex-col bg-primary/10 border-b border-primary/20">
-                                <div className="flex items-center justify-between p-3 pb-2"><h4 className="text-xs font-bold uppercase text-primary">Select Replacement</h4><button onClick={() => setShowPicker(null)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button></div>
-                                <div className="px-3 pb-3"><input autoFocus className="w-full bg-background-dark text-white text-xs p-2 rounded border border-border-dark focus:border-primary focus:outline-none" placeholder="Search cyclist..." value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} /></div>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
-                                {filteredPickerCyclists.length > 0 ? (filteredPickerCyclists.map(c => (
-                                        <button key={c.id} onClick={() => changeCyclistInSlot(idx, c.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-dark transition-colors text-left group/item">
-                                            <img src={c.imageUrl} crossOrigin="anonymous" className="size-8 rounded-full object-cover border border-border-dark group-hover/item:border-primary" />
-                                            <div className="overflow-hidden"><p className="text-xs font-bold text-white truncate">{c.name}</p><p className="text-xs text-text-muted truncate">{c.team}</p></div>
-                                        </button>
-                                ))) : (<p className="text-center text-xs text-text-muted mt-4">No riders found.</p>)}
-                            </div>
-                        </div>
-                        )}
                     </div>
-                    );
-                })}
+                    <div className="flex-1 text-center">
+                        <p className="text-white font-bold truncate">{cyclist.name}</p>
+                        <p className="text-xs text-text-muted truncate">{cyclist.team}</p>
+                    </div>
+                    <div className="pt-2 border-t border-border-dark">
+                    <div onClick={() => toggleSlotImposter(cyclist.id)} className={`cursor-pointer p-2 rounded-lg flex items-center justify-between transition-colors ${slot.isImposter ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
+                        <span className="text-xs font-bold uppercase">{slot.isImposter ? 'Imposter' : 'Correct'}</span>
+                        <div className={`w-8 h-4 rounded-full relative transition-colors ${slot.isImposter ? 'bg-red-500' : 'bg-green-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${slot.isImposter ? 'right-0.5' : 'left-0.5'}`}></div></div>
+                    </div>
+                    </div>
+                    {showPicker === idx && (
+                    <div className="absolute inset-0 z-20 bg-background-dark flex flex-col rounded-2xl border border-primary overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex flex-col bg-primary/10 border-b border-primary/20">
+                            <div className="flex items-center justify-between p-3 pb-2"><h4 className="text-xs font-bold uppercase text-primary">Select Replacement</h4><button onClick={() => setShowPicker(null)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button></div>
+                            <div className="px-3 pb-3"><input autoFocus className="w-full bg-background-dark text-white text-xs p-2 rounded border border-border-dark focus:border-primary focus:outline-none" placeholder="Search cyclist..." value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} /></div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+                            {filteredPickerCyclists.length > 0 ? (filteredPickerCyclists.map(c => (
+                                    <button key={c.id} onClick={() => changeCyclistInSlot(idx, c.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-dark transition-colors text-left group/item">
+                                        <img src={c.imageUrl} className="size-8 rounded-full object-cover border border-border-dark group-hover/item:border-primary" />
+                                        <div className="overflow-hidden"><p className="text-xs font-bold text-white truncate">{c.name}</p><p className="text-xs text-text-muted truncate">{c.team}</p></div>
+                                    </button>
+                            ))) : (<p className="text-center text-xs text-text-muted mt-4">No riders found.</p>)}
+                        </div>
+                    </div>
+                    )}
                 </div>
-                
-                {/* Watermerk voor de screenshot */}
-                <div className="mt-8 text-center">
-                    <p className="text-primary font-bold text-xl tracking-widest uppercase opacity-80">CYCLINGIMPOSTER.COM</p>
-                </div>
+                );
+            })}
             </div>
-            {/* EINDE SCREENSHOT GEBIED */}
         </div>
       </main>
 
