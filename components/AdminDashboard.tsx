@@ -372,21 +372,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // NIEUW: De verbeterde screenshot-functie targeting van het verborgen sjabloon
+  // VERNIEUWDE SCREENSHOT FUNCTIE MET BASE64 PRE-LOADER
   const downloadShareImage = async () => {
-    // We targeten nu het verborgen sjabloon, niet de actieve werkplek!
     const element = document.getElementById('hidden-share-template');
+    const btn = document.getElementById('download-share-btn');
     if (!element) return alert("Sjabloon niet gevonden!");
 
-    // Even wachten zodat de foto's geladen kunnen worden
-    await new Promise(r => setTimeout(r, 500));
+    if (btn) btn.innerText = "PREPARING IMAGE...";
 
     try {
+      // TRUCJE: Zet alle externe afbeeldingen om naar interne Base64 data om veiligheidsblokkades (CORS) te voorkomen
+      const images = Array.from(element.querySelectorAll('img'));
+      await Promise.all(images.map(async (img) => {
+          if (img.src.startsWith('http') && !img.src.startsWith('data:')) {
+              try {
+                  const res = await fetch(img.src, { mode: 'cors' });
+                  const blob = await res.blob();
+                  const base64 = await new Promise<string>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.readAsDataURL(blob);
+                  });
+                  img.src = base64; // Vervang de link door de ruwe data
+              } catch (e) {
+                  console.warn("Kon foto niet pre-loaden (waarschijnlijk geblokkeerd of stuk):", img.src);
+              }
+          }
+      }));
+
+      // Wacht een kwart seconde zodat de browser de nieuwe data kan inladen
+      await new Promise(r => setTimeout(r, 250));
+
+      if (btn) btn.innerText = "CAPTURING...";
+
       const canvas = await html2canvas(element, {
-        backgroundColor: '#102216', // Dezelfde kleur als background-dark
-        scale: 2, // Hoge resolutie
+        backgroundColor: '#102216', 
+        scale: 2, 
         useCORS: true, 
-        logging: false, // Zet dit aan voor debugging
+        logging: false, 
       });
       
       const link = document.createElement('a');
@@ -396,6 +419,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     } catch (err) {
       console.error("Screenshot failed:", err);
       alert("Oeps, screenshot maken mislukt. Bekijk de console.");
+    } finally {
+      if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-sm">photo_camera</span> DOWNLOAD SHARE IMAGE';
     }
   };
 
@@ -417,7 +442,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
   const maxGraphValue = Math.max(...dailyStats.map(s => s.onTime + s.late), 5);
 
-  // Hulppunten voor de share grid
   const getShareCyclists = () => {
     return localQuiz.slots.map(slot => {
         return cyclists.find(c => c.id === slot.cyclistId) || { name: 'Unknown', imageUrl: '', team: 'Unknown' };
@@ -427,55 +451,58 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
       
-      {/* --- VERBORGEN SCREENSHOT SJABLOON (Alleen voor html2canvas) --- */}
-      {/* We gebruiken absolute positionering om het buiten het scherm te plaatsen,
-          maar geven het vaste afmetingen (1080px breed). display: none werkt niet voor html2canvas. */}
+      {/* --- VERBETERD VERBORGEN SCREENSHOT SJABLOON --- */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', overflow: 'hidden' }}>
-        <div id="hidden-share-template" className="bg-background-dark p-12 flex flex-col gap-10 border border-white/10 rounded-2xl">
+        {/* We gebruiken hier hardcoded Hex kleuren (#102216 etc) zodat html2canvas nooit in de war raakt met Tailwind variabelen */}
+        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col gap-12 border-0">
+            
             {/* HEADER */}
-            <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-white text-5xl font-extrabold tracking-tight">{selectedDate}</h1>
-                    <p className="text-text-muted text-sm uppercase tracking-widest font-bold mt-1">THE DAILY PRO CYCLING CHALLENGE</p>
+                    <h1 className="text-white text-6xl font-extrabold tracking-tight">{selectedDate}</h1>
+                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2">The Daily Pro Cycling Challenge</p>
                 </div>
-                {/* Een klein og-image element (zorg dat je er eentje hebt in je public folder!) */}
-                <img src="/og-image.jpg" className="w-24 h-24 rounded-2xl object-cover border-4 border-primary shadow-neon opacity-70" alt="Logo" />
+                {/* Zelfgemaakt logo element dat altijd laadt */}
+                <div className="w-28 h-28 bg-[#183320] rounded-3xl border-4 border-[#0df259] flex items-center justify-center shadow-neon">
+                   <span className="material-symbols-outlined text-[#0df259]" style={{ fontSize: '64px' }}>pedal_bike</span>
+                </div>
             </div>
 
             {/* STATEMENT BOX */}
             {localQuiz.statement && (
-                <div className="bg-input-dark p-8 rounded-2xl border border-border-dark">
-                    <p className="text-primary text-xl font-bold uppercase tracking-widest mb-2 opacity-50">THE CRITERIA:</p>
-                    <p className="text-white text-5xl font-light leading-relaxed tracking-tight break-words">
+                <div className="bg-[#183320] p-10 rounded-3xl border border-[#2e5239]">
+                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-4 opacity-80">The Criteria:</p>
+                    {/* Tekst is kleiner (text-4xl) en heeft meer ademruimte (leading-snug) */}
+                    <p className="text-white text-4xl font-light leading-snug tracking-tight break-words">
                         "{localQuiz.statement}"
                     </p>
                 </div>
             )}
 
-            {/* CYCLIST GRID (Compact vertical layout: 2 cols x 4 rows) */}
-            <div className="grid grid-cols-2 gap-8">
+            {/* CYCLIST GRID (Ruimer opgezet) */}
+            <div className="grid grid-cols-2 gap-x-10 gap-y-12">
                 {getShareCyclists().map((c, idx) => (
-                    <div key={idx} className="flex items-center gap-6 bg-surface-dark p-6 rounded-2xl border border-border-dark">
-                        <div className="relative">
-                            <span className="absolute -top-3 -left-3 size-8 flex items-center justify-center bg-input-dark text-white rounded-full text-sm font-bold border border-border-dark z-10">#{idx + 1}</span>
+                    <div key={idx} className="flex items-center gap-8 bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
+                        <div className="relative flex-shrink-0">
+                            <span className="absolute -top-5 -left-5 w-12 h-12 flex items-center justify-center bg-[#22492f] text-white rounded-full text-xl font-bold border-4 border-[#183320] z-10">#{idx + 1}</span>
                             {c.imageUrl ? (
-                                <img src={c.imageUrl} crossOrigin="anonymous" className="w-28 h-28 rounded-full object-cover border-4 border-primary" alt={c.name} />
+                                <img src={c.imageUrl} crossOrigin="anonymous" className="w-32 h-32 rounded-full object-cover border-4 border-[#0df259]" alt={c.name} />
                             ) : (
-                                <div className="w-28 h-28 rounded-full border-4 border-dashed border-input-dark flex items-center justify-center text-text-muted text-5xl font-black">?</div>
+                                <div className="w-32 h-32 rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
                             )}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                            <p className="text-white text-2xl font-bold truncate">{c.name}</p>
-                            <p className="text-text-muted text-sm font-medium mt-1 truncate">{c.team}</p>
+                            <p className="text-white text-3xl font-bold truncate">{c.name}</p>
+                            <p className="text-[#90cba4] text-xl font-medium mt-2 truncate">{c.team}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* FOOTER */}
-            <div className="mt-6 pt-10 border-t border-white/10 text-center">
-                <p className="text-white text-2xl font-light">Can you spot the <strong className="text-red-400 font-bold">Imposter</strong> among them?</p>
-                <p className="text-primary text-4xl font-black mt-4 tracking-widest uppercase">CYCLINGIMPOSTER.COM</p>
+            <div className="mt-10 pt-12 border-t border-[#2e5239] text-center">
+                <p className="text-white text-3xl font-light">Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
+                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase">CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
       </div>
@@ -507,7 +534,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8 relative z-10">
         
-        {/* --- STICKY CONTROL BAR --- */}
         <div className="sticky top-[73px] z-40 bg-background-dark/95 backdrop-blur-md py-4 border-b border-white/10 -mx-6 px-6 lg:-mx-10 lg:px-10 -mt-2 shadow-xl flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
@@ -549,7 +575,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </div>
         </div>
 
-        {/* ANALYTICS KAARTEN */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
                 <div className="size-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
@@ -580,7 +605,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </div>
         </div>
 
-        {/* GRAFIEK */}
         <div className="bg-surface-dark p-6 rounded-xl border border-border-dark">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-white text-lg font-bold flex items-center gap-2">
@@ -716,7 +740,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 onChange={handleStatementChange}
               />
 
-              {/* SOCIAL MEDIA TOOLKIT */}
               <div className="mt-6 pt-6 border-t border-border-dark">
                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-end justify-between mb-3">
                   <div className="flex-1 w-full">
@@ -744,8 +767,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                         <span className={`material-symbols-outlined text-sm ${isGeneratingCaption ? 'animate-spin' : ''}`}>auto_awesome</span>
                         {isGeneratingCaption ? 'GENERATING...' : 'GENERATE TEXT'}
                     </button>
-                    {/* NIEUW: De verbeterde download-knop targeting het verborgen sjabloon */}
                     <button 
+                        id="download-share-btn"
                         onClick={downloadShareImage}
                         className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold hover:bg-purple-500/20 transition-all"
                     >
@@ -760,7 +783,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </div>
         </div>
 
-        {/* ACTIEVE WERKPLEK (Blijft zoals het was, voor interactie) */}
         <div className={`transition-opacity ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center justify-between mt-4 mb-6">
                 <h3 className="text-white text-xl font-bold leading-tight flex items-center gap-3">
