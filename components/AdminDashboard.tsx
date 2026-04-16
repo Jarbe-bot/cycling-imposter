@@ -403,9 +403,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       if (btn) btn.innerText = "CAPTURING...";
 
+      // DE ULTIEME 1080x1350 LOCKDOWN 
       const canvas = await html2canvas(element, {
         backgroundColor: '#102216', 
-        scale: 2, 
+        width: 1080,          // Forceer breedte
+        height: 1350,         // Forceer hoogte
+        scale: 1,             // DIT ZORGT VOOR EXACT 1080x1350 PIXELS (ipv 2160x2700)
         useCORS: true, 
         logging: false, 
       });
@@ -449,9 +452,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
       
-      {/* --- PERFECT PORTRET VERBORGEN SCREENSHOT SJABLOON (1080x1350) --- */}
+      {/* --- STRICT VERBORGEN SCREENSHOT SJABLOON (1080x1350) --- */}
+      {/* Toegevoegd: maxHeight en overflow-hidden om uitrekking te stoppen */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', height: '1350px', overflow: 'hidden' }}>
-        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col border-0" style={{ fontFamily: "'Lexend', sans-serif", width: '1080px', height: '1350px', boxSizing: 'border-box' }}>
+        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col border-0" style={{ fontFamily: "'Lexend', sans-serif", width: '1080px', height: '1350px', maxHeight: '1350px', overflow: 'hidden', boxSizing: 'border-box' }}>
             
             {/* HEADER */}
             <div className="flex items-center justify-between mb-8">
@@ -471,7 +475,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </div>
             )}
 
-            {/* CYCLIST GRID - my-auto zorgt voor perfecte verticale centrering! */}
+            {/* CYCLIST GRID */}
             <div className="grid grid-cols-2 gap-x-10 gap-y-12 my-auto">
                 {getShareCyclists().map((c, idx) => (
                     <div key={idx} className="flex items-center gap-8 bg-[#183320] p-6 rounded-3xl border border-[#2e5239]">
@@ -493,7 +497,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                                 <div className="w-28 h-28 min-w-[112px] min-h-[112px] rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
                             )}
                         </div>
-                        {/* Overflow hidden verwijderd en padding bottom (pb-2) toegevoegd zodat letters zoals 'g' en 'j' niet meer worden afgesneden */}
                         <div className="flex-1 min-w-0">
                             <p className="text-white text-3xl font-bold pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.name}</p>
                             <p className="text-[#90cba4] text-xl font-medium pb-1 break-words" style={{ lineHeight: '1.3' }}>{c.team}</p>
