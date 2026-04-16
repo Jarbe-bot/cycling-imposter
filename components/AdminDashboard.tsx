@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Quiz, Cyclist } from '../types';
 import { supabase } from '../supabaseClient';
+import { GoogleGenAI } from "@google/genai";
 import { INITIAL_QUIZ } from '../constants';
 import html2canvas from 'html2canvas';
 
@@ -18,6 +19,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const [stats, setStats] = useState({ plays: 0, avgScore: 0, perfectScores: 0 });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -34,6 +36,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [moveTargetDate, setMoveTargetDate] = useState('');
   
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const [socialCaption, setSocialCaption] = useState('');
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
 
   useEffect(() => {
     setLocalQuiz(quiz);
@@ -308,81 +313,80 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     setPickerSearch('');
   };
 
-  // --- DE BACK-TO-BASICS SCREENSHOT FUNCTIE ---
+  const generateAIStatement = async () => {
+    setIsGenerating(true);
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+      if (!apiKey) return alert("Geen API Key ingesteld in je .env bestand!");
+
+      const ai = new GoogleGenAI({ apiKey });
+      const currentRiders = localQuiz.slots.map(s => cyclists.find(c => c.id === s.cyclistId)?.name).join(', ');
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash", 
+        contents: `Create a short, challenging cycling trivia statement (max 60 characters) that applies to some of these riders but not all: ${currentRiders}. Return only the statement text.`,
+      });
+
+      if (response.response.text()) {
+        const text = response.response.text().replace(/"/g, '').trim();
+        setLocalQuiz(prev => ({ ...prev, statement: text }));
+      }
+    } catch (error: any) {
+      console.error("AI failed:", error);
+      alert("AI fout: " + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const generateSocialCaption = async () => {
+    if (!localQuiz.statement) return alert("Genereer of typ eerst een statement!");
+    
+    setIsGeneratingCaption(true);
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+      if (!apiKey) return alert("Geen API Key gevonden");
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const prompt = `Write a short, engaging social media caption (for X/Twitter and Instagram) to promote today's daily puzzle on 'Cycling Imposter'. 
+      The theme/statement of today is: "${localQuiz.statement}". 
+      Do NOT reveal the answer or the riders' names. Tease the audience and challenge them to find the fake rider.
+      Include 2-3 relevant hashtags like #CyclingImposter #ProCycling. 
+      End the caption with: "Play now: https://www.cyclingimposter.com"`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash", 
+        contents: prompt,
+      });
+
+      if (response.response.text()) {
+        const text = response.response.text().replace(/"/g, '').trim();
+        setSocialCaption(text);
+      }
+    } catch (error: any) {
+      console.error("AI Caption failed:", error);
+      alert("Caption genereren mislukt: " + error.message);
+    } finally {
+      setIsGeneratingCaption(false);
+    }
+  };
+
+  // VERNIEUWDE SCREENSHOT FUNCTIE targeting van het verborgen sjabloon
   const downloadShareImage = async () => {
+    // We targeten nu het verborgen sjabloon, niet de actieve werkplek!
     const element = document.getElementById('hidden-share-template');
-    const btn = document.getElementById('download-share-btn');
     if (!element) return alert("Sjabloon niet gevonden!");
 
-    if (btn) btn.innerText = "DOWNLOADING IMAGES...";
+    // Even wachten zodat de foto's geladen kunnen worden
+    await new Promise(r => setTimeout(r, 500));
 
     try {
-      await document.fonts.ready;
-
-      const imageDivs = Array.from(element.querySelectorAll('.share-cyclist-photo'));
-      await Promise.all(imageDivs.map(async (el) => {
-          const div = el as HTMLElement;
-          const originalSrc = div.getAttribute('data-img-src'); 
-
-          if (originalSrc && originalSrc.startsWith('http') && !originalSrc.startsWith('data:') && !originalSrc.includes(window.location.hostname)) {
-              let base64 = '';
-              
-              try {
-                  // POGING 1: Direct!
-                  const fetchUrl = originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
-                  const res = await fetch(fetchUrl, { mode: 'cors' });
-                  
-                  const contentType = res.headers.get('content-type');
-                  if (!res.ok || !contentType || !contentType.startsWith('image/')) {
-                      throw new Error("Directe fetch faalde of gaf geen afbeelding");
-                  }
-
-                  const blob = await res.blob();
-                  base64 = await new Promise<string>((resolve) => {
-                      const reader = new FileReader();
-                      reader.onloadend = () => resolve(reader.result as string);
-                      reader.readAsDataURL(blob);
-                  });
-              } catch (err1) {
-                  console.log("Direct faalde voor:", originalSrc, "- Overschakelen op Proxy...");
-                  try {
-                      // POGING 2: Simpele Proxy als fallback
-                      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
-                      const res = await fetch(proxyUrl);
-                      
-                      const contentType = res.headers.get('content-type');
-                      if (!res.ok || !contentType || !contentType.startsWith('image/')) {
-                          throw new Error("Proxy faalde of gaf geen afbeelding");
-                      }
-
-                      const blob = await res.blob();
-                      base64 = await new Promise<string>((resolve) => {
-                          const reader = new FileReader();
-                          reader.onloadend = () => resolve(reader.result as string);
-                          reader.readAsDataURL(blob);
-                      });
-                  } catch (err2) {
-                      console.error("Beide pogingen faalden voor:", originalSrc);
-                  }
-              }
-
-              // Plak de foto erin als we er een hebben
-              if (base64) {
-                  div.style.backgroundImage = `url("${base64}")`; 
-              }
-          }
-      }));
-
-      if (btn) btn.innerText = "RENDERING...";
-      await new Promise(r => setTimeout(r, 2000));
-
-      if (btn) btn.innerText = "CAPTURING...";
-
       const canvas = await html2canvas(element, {
-        backgroundColor: '#102216', 
-        scale: 2, 
+        backgroundColor: '#102216', // Dezelfde kleur als background-dark
+        scale: 2, // Hoge resolutie
         useCORS: true, 
-        logging: false, 
+        logging: false, // Zet dit aan voor debugging
       });
       
       const link = document.createElement('a');
@@ -392,8 +396,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     } catch (err) {
       console.error("Screenshot failed:", err);
       alert("Oeps, screenshot maken mislukt. Bekijk de console.");
-    } finally {
-      if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-sm">photo_camera</span> DOWNLOAD SHARE IMAGE';
     }
   };
 
@@ -424,62 +426,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
       
-      {/* --- VERBETERD VERBORGEN SCREENSHOT SJABLOON --- */}
+      {/* --- VERBORGEN SCREENSHOT SJABLOON (Alleen voor html2canvas) --- */}
+      {/* We gebruiken absolute positionering om het buiten het scherm te plaatsen,
+          maar geven het vaste afmetingen (1080px breed). display: none werkt niet voor html2canvas. */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', overflow: 'hidden' }}>
-        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col gap-12 border-0" style={{ fontFamily: "'Lexend', sans-serif" }}>
-            
+        <div id="hidden-share-template" className="bg-background-dark p-12 flex flex-col gap-10 border border-white/10 rounded-2xl">
             {/* HEADER */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
-                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
+                    <h1 className="text-white text-5xl font-extrabold tracking-tight">{selectedDate}</h1>
+                    <p className="text-text-muted text-sm uppercase tracking-widest font-bold mt-1">THE DAILY PRO CYCLING CHALLENGE</p>
                 </div>
+                {/* Een klein og-image element (zorg dat je er eentje hebt in je public folder!) */}
+                <img src="/og-image.jpg" className="w-24 h-24 rounded-2xl object-cover border-4 border-primary shadow-neon opacity-70" alt="Logo" />
             </div>
 
             {/* STATEMENT BOX */}
             {localQuiz.statement && (
-                <div className="bg-[#183320] p-10 rounded-3xl border border-[#2e5239]">
-                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-4 opacity-80" style={{ lineHeight: '1.2' }}>The Criteria:</p>
-                    <p className="text-white text-4xl font-light tracking-tight break-words" style={{ lineHeight: '1.5' }}>
+                <div className="bg-input-dark p-8 rounded-2xl border border-border-dark">
+                    <p className="text-primary text-xl font-bold uppercase tracking-widest mb-2 opacity-50">THE CRITERIA:</p>
+                    <p className="text-white text-5xl font-light leading-relaxed tracking-tight break-words">
                         "{localQuiz.statement}"
                     </p>
                 </div>
             )}
 
-            {/* CYCLIST GRID */}
-            <div className="grid grid-cols-2 gap-x-10 gap-y-12">
+            {/* CYCLIST GRID (Compact vertical layout: 2 cols x 4 rows) */}
+            <div className="grid grid-cols-2 gap-8">
                 {getShareCyclists().map((c, idx) => (
-                    <div key={idx} className="flex items-center gap-8 bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
-                        <div className="relative flex-shrink-0">
-                            <span className="absolute -top-5 -left-5 w-12 h-12 flex items-center justify-center bg-[#22492f] text-white rounded-full text-xl font-bold border-4 border-[#183320] z-10">#{idx + 1}</span>
+                    <div key={idx} className="flex items-center gap-6 bg-surface-dark p-6 rounded-2xl border border-border-dark">
+                        <div className="relative">
+                            <span className="absolute -top-3 -left-3 size-8 flex items-center justify-center bg-input-dark text-white rounded-full text-sm font-bold border border-border-dark z-10">#{idx + 1}</span>
                             {c.imageUrl ? (
-                                <div 
-                                    className="share-cyclist-photo w-32 h-32 rounded-full border-4 border-[#0df259] flex-shrink-0" 
-                                    data-img-src={c.imageUrl}
-                                    style={{ 
-                                        backgroundImage: `url('${c.imageUrl}')`,
-                                        backgroundSize: 'cover',
-                                        backgroundPosition: 'center',
-                                        minWidth: '128px', 
-                                        minHeight: '128px'
-                                    }}
-                                />
+                                <img src={c.imageUrl} crossOrigin="anonymous" className="w-28 h-28 rounded-full object-cover border-4 border-primary" alt={c.name} />
                             ) : (
-                                <div className="w-32 h-32 min-w-[128px] min-h-[128px] rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
+                                <div className="w-28 h-28 rounded-full border-4 border-dashed border-input-dark flex items-center justify-center text-text-muted text-5xl font-black">?</div>
                             )}
                         </div>
-                        <div className="flex-1">
-                            <p className="text-white text-3xl font-bold pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.name}</p>
-                            <p className="text-[#90cba4] text-xl font-medium mt-1 pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.team}</p>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-white text-2xl font-bold truncate">{c.name}</p>
+                            <p className="text-text-muted text-sm font-medium mt-1 truncate">{c.team}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* FOOTER */}
-            <div className="mt-10 pt-12 border-t border-[#2e5239] text-center pb-4">
-                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposters</strong>?</p>
-                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
+            <div className="mt-6 pt-10 border-t border-white/10 text-center">
+                <p className="text-white text-2xl font-light">Can you spot the <strong className="text-red-400 font-bold">Imposter</strong> among them?</p>
+                <p className="text-primary text-4xl font-black mt-4 tracking-widest uppercase">CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
       </div>
@@ -511,6 +506,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-10 flex flex-col gap-8 relative z-10">
         
+        {/* --- STICKY CONTROL BAR --- */}
         <div className="sticky top-[73px] z-40 bg-background-dark/95 backdrop-blur-md py-4 border-b border-white/10 -mx-6 px-6 lg:-mx-10 lg:px-10 -mt-2 shadow-xl flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
@@ -552,6 +548,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           </div>
         </div>
 
+        {/* ANALYTICS KAARTEN */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface-dark p-4 rounded-xl border border-border-dark flex items-center gap-4">
                 <div className="size-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
@@ -582,6 +579,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             </div>
         </div>
 
+        {/* GRAFIEK */}
         <div className="bg-surface-dark p-6 rounded-xl border border-border-dark">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-white text-lg font-bold flex items-center gap-2">
@@ -701,30 +699,66 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                   <span className="material-symbols-outlined">edit_note</span>
                   <h3 className="text-lg font-bold text-white">Statement</h3>
                 </div>
+                <button 
+                  onClick={generateAIStatement}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs font-bold hover:bg-primary/20 transition-all disabled:opacity-50"
+                >
+                  <span className={`material-symbols-outlined text-sm ${isGenerating ? 'animate-spin' : ''}`}>auto_awesome</span>
+                  {isGenerating ? 'THINKING...' : 'AI SUGGEST'}
+                </button>
               </div>
-              
               <textarea 
-                className="form-input w-full flex-1 resize-none rounded-xl text-white focus:outline-0 focus:ring-2 focus:ring-primary border-none bg-input-dark placeholder:text-text-muted/50 p-6 text-xl md:text-2xl font-light leading-relaxed mb-6"
+                className="form-input w-full flex-1 resize-none rounded-xl text-white focus:outline-0 focus:ring-2 focus:ring-primary border-none bg-input-dark placeholder:text-text-muted/50 p-6 text-xl md:text-2xl font-light leading-relaxed"
                 placeholder="Type here..."
                 value={localQuiz.statement}
                 onChange={handleStatementChange}
               />
 
-              <div className="pt-6 border-t border-border-dark flex justify-end">
-                <button 
-                    id="download-share-btn"
-                    onClick={downloadShareImage}
-                    className="flex justify-center items-center gap-2 px-6 py-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-sm font-bold hover:bg-purple-500/20 transition-all"
-                >
-                    <span className="material-symbols-outlined text-base">photo_camera</span>
-                    DOWNLOAD SHARE IMAGE
-                </button>
+              {/* SOCIAL MEDIA TOOLKIT */}
+              <div className="mt-6 pt-6 border-t border-border-dark">
+                <div className="flex flex-col md:flex-row gap-4 items-start md:items-end justify-between mb-3">
+                  <div className="flex-1 w-full">
+                    <h4 className="text-sm font-bold text-gray-400 flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-base">share</span>
+                        Social Media Caption
+                    </h4>
+                    <div className="flex gap-2">
+                        <textarea 
+                            className="flex-1 bg-input-dark border border-border-dark rounded-lg text-white text-sm p-3 focus:border-primary outline-none resize-none"
+                            rows={3}
+                            value={socialCaption}
+                            onChange={(e) => setSocialCaption(e.target.value)}
+                            placeholder="Klik op generate of typ je eigen caption..."
+                        />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
+                    <button 
+                        onClick={generateSocialCaption}
+                        disabled={isGeneratingCaption || !localQuiz.statement}
+                        className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-bold hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                    >
+                        <span className={`material-symbols-outlined text-sm ${isGeneratingCaption ? 'animate-spin' : ''}`}>auto_awesome</span>
+                        {isGeneratingCaption ? 'GENERATING...' : 'GENERATE TEXT'}
+                    </button>
+                    <button 
+                        onClick={downloadShareImage}
+                        className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold hover:bg-purple-500/20 transition-all"
+                    >
+                        <span className="material-symbols-outlined text-sm">photo_camera</span>
+                        DOWNLOAD SHARE IMAGE
+                    </button>
+                  </div>
+                </div>
               </div>
 
             </div>
           </div>
         </div>
 
+        {/* ACTIEVE WERKPLEK */}
         <div className={`transition-opacity ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center justify-between mt-4 mb-6">
                 <h3 className="text-white text-xl font-bold leading-tight flex items-center gap-3">
