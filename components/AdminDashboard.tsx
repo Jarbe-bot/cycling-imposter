@@ -461,7 +461,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
-                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>Cycling Imposter - Daily Challenge at cyclingimposter.com</p>
+                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.4' }}>cyclingimposter.com - Daily Challenge</p>
                 </div>
             </div>
 
