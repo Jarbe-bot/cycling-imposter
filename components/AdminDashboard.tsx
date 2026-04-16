@@ -308,7 +308,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     setPickerSearch('');
   };
 
-  // --- SCREENSHOT FUNCTIE MET GRACEFUL FALLBACK (Geen AI meer) ---
+  // --- SCREENSHOT FUNCTIE MET DUBBELE PROXY FALLBACK ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
@@ -344,15 +344,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                       reader.readAsDataURL(blob);
                   });
               } catch (err1) {
-                  console.log("Direct faalde voor:", originalSrc, "- Overschakelen op Proxy...");
                   try {
-                      // POGING 2: Simpele Proxy als fallback
-                      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
+                      // POGING 2: AllOrigins Proxy (Vaak stabieler)
+                      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(originalSrc)}`;
                       const res = await fetch(proxyUrl);
                       
                       const contentType = res.headers.get('content-type');
                       if (!res.ok || !contentType || !contentType.startsWith('image/')) {
-                          throw new Error("Proxy faalde of gaf geen afbeelding");
+                          throw new Error("AllOrigins faalde");
                       }
 
                       const blob = await res.blob();
@@ -362,22 +361,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                           reader.readAsDataURL(blob);
                       });
                   } catch (err2) {
-                      console.error("Beide pogingen faalden voor:", originalSrc);
-                      
-                      // POGING 3: Fallback icoontje ('?') tekenen
-                      const fallbackCanvas = document.createElement('canvas');
-                      fallbackCanvas.width = 128; 
-                      fallbackCanvas.height = 128;
-                      const ctx = fallbackCanvas.getContext('2d');
-                      if (ctx) {
-                          ctx.fillStyle = '#22492f'; 
-                          ctx.fillRect(0, 0, 128, 128);
-                          ctx.fillStyle = '#90cba4'; 
-                          ctx.font = 'bold 64px sans-serif';
-                          ctx.textAlign = 'center'; 
-                          ctx.textBaseline = 'middle';
-                          ctx.fillText('?', 64, 64);
-                          base64 = fallbackCanvas.toDataURL('image/png');
+                      try {
+                          // POGING 3: CorsProxy.io (De oude back-up)
+                          const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
+                          const res = await fetch(proxyUrl2);
+                          
+                          const contentType = res.headers.get('content-type');
+                          if (!res.ok || !contentType || !contentType.startsWith('image/')) {
+                              throw new Error("CorsProxy faalde");
+                          }
+
+                          const blob = await res.blob();
+                          base64 = await new Promise<string>((resolve) => {
+                              const reader = new FileReader();
+                              reader.onloadend = () => resolve(reader.result as string);
+                              reader.readAsDataURL(blob);
+                          });
+                      } catch (err3) {
+                          console.error("Alle pogingen faalden voor:", originalSrc);
+                          
+                          // POGING 4: Fallback icoontje ('?') tekenen
+                          const fallbackCanvas = document.createElement('canvas');
+                          fallbackCanvas.width = 128; 
+                          fallbackCanvas.height = 128;
+                          const ctx = fallbackCanvas.getContext('2d');
+                          if (ctx) {
+                              ctx.fillStyle = '#22492f'; 
+                              ctx.fillRect(0, 0, 128, 128);
+                              ctx.fillStyle = '#90cba4'; 
+                              ctx.font = 'bold 64px sans-serif';
+                              ctx.textAlign = 'center'; 
+                              ctx.textBaseline = 'middle';
+                              ctx.fillText('?', 64, 64);
+                              base64 = fallbackCanvas.toDataURL('image/png');
+                          }
                       }
                   }
               }
