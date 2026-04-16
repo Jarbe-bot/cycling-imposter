@@ -372,7 +372,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
- // --- VERNIEUWDE SCREENSHOT FUNCTIE MET PROXY FALLBACK ---
+  // --- SCREENSHOT FUNCTIE AANGEPAST VOOR BACKGROUND-IMAGES ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
@@ -383,15 +383,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     try {
       await document.fonts.ready;
 
-      // 2. Foto Pre-loader met Proxy Truc
-      const images = Array.from(element.querySelectorAll('img'));
-      await Promise.all(images.map(async (img) => {
-          // We hoeven ons eigen logo en data-urls niet te pre-loaden
-          if (img.src.startsWith('http') && !img.src.startsWith('data:') && !img.src.includes(window.location.hostname)) {
-              const originalSrc = img.src;
+      // 2. Foto Pre-loader: nu zoeken we naar de DIVs met background-images in plaats van <img> tags
+      const imageDivs = Array.from(element.querySelectorAll('.share-cyclist-photo'));
+      await Promise.all(imageDivs.map(async (el) => {
+          const div = el as HTMLElement;
+          const originalSrc = div.getAttribute('data-img-src'); // Haal de bron URL op
+
+          if (originalSrc && originalSrc.startsWith('http') && !originalSrc.startsWith('data:') && !originalSrc.includes(window.location.hostname)) {
               try {
                   // POGING 1: Direct proberen
-                  const res = await fetch(originalSrc, { mode: 'cors' });
+                  const fetchUrl = originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
+                  const res = await fetch(fetchUrl, { mode: 'cors' });
                   if (!res.ok) throw new Error("Netwerk response was niet ok");
                   const blob = await res.blob();
                   
@@ -400,12 +402,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                       reader.onloadend = () => resolve(reader.result as string);
                       reader.readAsDataURL(blob);
                   });
-                  img.src = base64; 
+                  div.style.backgroundImage = `url("${base64}")`; // Injecteer als achtergrond
               } catch (e) {
                   console.log("Directe fetch geblokkeerd voor:", originalSrc, "- Schakelt over op Proxy!");
                   try {
-                      // POGING 2: De Proxy inzetten (corsproxy.io of allorigins)
-                      // Dit omzeilt de strenge servers van de fotobron
+                      // POGING 2: De Proxy inzetten
                       const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
                       const proxyRes = await fetch(proxyUrl);
                       const proxyBlob = await proxyRes.blob();
@@ -415,7 +416,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                           reader.onloadend = () => resolve(reader.result as string);
                           reader.readAsDataURL(proxyBlob);
                       });
-                      img.src = proxyBase64;
+                      div.style.backgroundImage = `url("${proxyBase64}")`;
                   } catch (proxyError) {
                       console.error("Zelfs de proxy faalde voor:", originalSrc);
                   }
@@ -423,7 +424,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           }
       }));
 
-      // Korte pauze voor de rendering engine om de nieuwe proxy-foto's te tonen
+      // Korte pauze voor de rendering engine
       await new Promise(r => setTimeout(r, 600));
 
       if (btn) btn.innerText = "CAPTURING...";
@@ -499,19 +500,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </div>
             )}
 
-            {/* CYCLIST GRID (Tekst-clipping gefixt door truncate te verwijderen en padding toe te voegen) */}
+            {/* CYCLIST GRID (Gefixt met DIV achtergronden ipv IMG tags voor perfecte ronde portretten) */}
             <div className="grid grid-cols-2 gap-x-10 gap-y-12">
                 {getShareCyclists().map((c, idx) => (
                     <div key={idx} className="flex items-center gap-8 bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
                         <div className="relative flex-shrink-0">
                             <span className="absolute -top-5 -left-5 w-12 h-12 flex items-center justify-center bg-[#22492f] text-white rounded-full text-xl font-bold border-4 border-[#183320] z-10">#{idx + 1}</span>
                             {c.imageUrl ? (
-                                <img src={c.imageUrl} crossOrigin="anonymous" className="w-32 h-32 rounded-full object-cover border-4 border-[#0df259]" alt={c.name} />
+                                <div 
+                                    className="share-cyclist-photo w-32 h-32 rounded-full border-4 border-[#0df259] flex-shrink-0" 
+                                    data-img-src={c.imageUrl}
+                                    style={{ 
+                                        backgroundImage: `url('${c.imageUrl}')`,
+                                        backgroundSize: 'cover',
+                                        backgroundPosition: 'center',
+                                        minWidth: '128px', // Forceert de afmeting zodat hij nooit indeukt
+                                        minHeight: '128px'
+                                    }}
+                                />
                             ) : (
-                                <div className="w-32 h-32 rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
+                                <div className="w-32 h-32 min-w-[128px] min-h-[128px] rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
                             )}
                         </div>
-                        {/* We hebben overflow-hidden en truncate weggehaald, en pb-2 (padding-bottom) toegevoegd voor veilige weergave */}
                         <div className="flex-1">
                             <p className="text-white text-3xl font-bold pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.name}</p>
                             <p className="text-[#90cba4] text-xl font-medium mt-1 pb-2 break-words" style={{ lineHeight: '1.3' }}>{c.team}</p>
@@ -522,7 +532,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
             {/* FOOTER */}
             <div className="mt-10 pt-12 border-t border-[#2e5239] text-center pb-4">
-                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
+                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
                 <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
