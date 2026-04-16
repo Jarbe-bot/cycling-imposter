@@ -461,14 +461,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
-                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
+                    <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>Cycling Imposter - Daily Challenge at cyclingimposter.com</p>
                 </div>
             </div>
 
             {/* STATEMENT BOX */}
             {localQuiz.statement && (
                 <div className="bg-[#183320] p-10 rounded-3xl border border-[#2e5239] mb-4">
-                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-3 opacity-80" style={{ lineHeight: '1.2' }}>Your target::</p>
+                    <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-3 opacity-80" style={{ lineHeight: '1.2' }}>Your target today:</p>
                     <p className="text-white text-4xl font-light tracking-tight break-words" style={{ lineHeight: '1.4' }}>
                         "{localQuiz.statement}"
                     </p>
@@ -508,7 +508,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
             {/* FOOTER */}
             <div className="mt-auto pt-8 border-t border-[#2e5239] text-center">
                 <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposters</strong>?</p>
-                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
+                
             </div>
         </div>
       </div>
