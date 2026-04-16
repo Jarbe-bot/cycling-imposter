@@ -512,7 +512,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
             {/* FOOTER - ALTIJD ONDERAAN VASTGEMAAKT */}
             <div className="mt-auto pt-10 border-t border-[#2e5239] text-center pb-4">
-                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
+                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposters</strong>?</p>
                 <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
