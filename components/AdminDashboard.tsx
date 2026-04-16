@@ -372,26 +372,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // --- SCREENSHOT FUNCTIE AANGEPAST VOOR BACKGROUND-IMAGES ---
+  // --- SCREENSHOT FUNCTIE MET LANGERE WACHTTIJD ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
     if (!element) return alert("Sjabloon niet gevonden!");
 
-    if (btn) btn.innerText = "PREPARING IMAGE...";
+    if (btn) btn.innerText = "DOWNLOADING IMAGES...";
 
     try {
       await document.fonts.ready;
 
-      // 2. Foto Pre-loader: nu zoeken we naar de DIVs met background-images in plaats van <img> tags
       const imageDivs = Array.from(element.querySelectorAll('.share-cyclist-photo'));
       await Promise.all(imageDivs.map(async (el) => {
           const div = el as HTMLElement;
-          const originalSrc = div.getAttribute('data-img-src'); // Haal de bron URL op
+          const originalSrc = div.getAttribute('data-img-src'); 
 
           if (originalSrc && originalSrc.startsWith('http') && !originalSrc.startsWith('data:') && !originalSrc.includes(window.location.hostname)) {
               try {
-                  // POGING 1: Direct proberen
                   const fetchUrl = originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
                   const res = await fetch(fetchUrl, { mode: 'cors' });
                   if (!res.ok) throw new Error("Netwerk response was niet ok");
@@ -402,11 +400,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                       reader.onloadend = () => resolve(reader.result as string);
                       reader.readAsDataURL(blob);
                   });
-                  div.style.backgroundImage = `url("${base64}")`; // Injecteer als achtergrond
+                  div.style.backgroundImage = `url("${base64}")`; 
               } catch (e) {
-                  console.log("Directe fetch geblokkeerd voor:", originalSrc, "- Schakelt over op Proxy!");
                   try {
-                      // POGING 2: De Proxy inzetten
                       const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
                       const proxyRes = await fetch(proxyUrl);
                       const proxyBlob = await proxyRes.blob();
@@ -424,8 +420,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           }
       }));
 
-      // Korte pauze voor de rendering engine
-      await new Promise(r => setTimeout(r, 600));
+      // AANGEPAST: Geef de browser 2 volle seconden om de gedownloade beelden te 'verven'
+      if (btn) btn.innerText = "RENDERING...";
+      await new Promise(r => setTimeout(r, 2000));
 
       if (btn) btn.innerText = "CAPTURING...";
 
@@ -479,14 +476,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', overflow: 'hidden' }}>
         <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col gap-12 border-0" style={{ fontFamily: "'Lexend', sans-serif" }}>
             
-            {/* HEADER */}
+            {/* HEADER (Zonder logo) */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
                     <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
-                </div>
-                <div className="w-28 h-28 bg-[#183320] rounded-3xl border-4 border-[#0df259] flex items-center justify-center shadow-neon">
-                   <span className="material-symbols-outlined text-[#0df259]" style={{ fontSize: '64px' }}>pedal_bike</span>
                 </div>
             </div>
 
@@ -500,7 +494,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                 </div>
             )}
 
-            {/* CYCLIST GRID (Gefixt met DIV achtergronden ipv IMG tags voor perfecte ronde portretten) */}
+            {/* CYCLIST GRID */}
             <div className="grid grid-cols-2 gap-x-10 gap-y-12">
                 {getShareCyclists().map((c, idx) => (
                     <div key={idx} className="flex items-center gap-8 bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
@@ -514,7 +508,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                                         backgroundImage: `url('${c.imageUrl}')`,
                                         backgroundSize: 'cover',
                                         backgroundPosition: 'center',
-                                        minWidth: '128px', // Forceert de afmeting zodat hij nooit indeukt
+                                        minWidth: '128px', 
                                         minHeight: '128px'
                                     }}
                                 />
@@ -532,7 +526,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
             {/* FOOTER */}
             <div className="mt-10 pt-12 border-t border-[#2e5239] text-center pb-4">
-                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
+                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you spot the <strong className="text-[#ef4444] font-bold">Imposter</strong> among them?</p>
                 <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
