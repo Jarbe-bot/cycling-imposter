@@ -372,7 +372,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  // --- SCREENSHOT FUNCTIE MET LANGERE WACHTTIJD ---
+// --- DE BACK-TO-BASICS SCREENSHOT FUNCTIE ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
@@ -389,38 +389,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
           const originalSrc = div.getAttribute('data-img-src'); 
 
           if (originalSrc && originalSrc.startsWith('http') && !originalSrc.startsWith('data:') && !originalSrc.includes(window.location.hostname)) {
+              let base64 = '';
+              
               try {
+                  // POGING 1: Direct! (Dit werkte perfect voor Lance en Rohan)
                   const fetchUrl = originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
                   const res = await fetch(fetchUrl, { mode: 'cors' });
-                  if (!res.ok) throw new Error("Netwerk response was niet ok");
-                  const blob = await res.blob();
                   
-                  const base64 = await new Promise<string>((resolve) => {
+                  // CRUCIAAL: Check of we echt een foto krijgen, en geen HTML error pagina
+                  const contentType = res.headers.get('content-type');
+                  if (!res.ok || !contentType || !contentType.startsWith('image/')) {
+                      throw new Error("Directe fetch faalde of gaf geen afbeelding");
+                  }
+
+                  const blob = await res.blob();
+                  base64 = await new Promise<string>((resolve) => {
                       const reader = new FileReader();
                       reader.onloadend = () => resolve(reader.result as string);
                       reader.readAsDataURL(blob);
                   });
-                  div.style.backgroundImage = `url("${base64}")`; 
-              } catch (e) {
+              } catch (err1) {
+                  console.log("Direct faalde voor:", originalSrc, "- Overschakelen op Proxy...");
                   try {
+                      // POGING 2: Simpele Proxy als fallback
                       const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
-                      const proxyRes = await fetch(proxyUrl);
-                      const proxyBlob = await proxyRes.blob();
+                      const res = await fetch(proxyUrl);
                       
-                      const proxyBase64 = await new Promise<string>((resolve) => {
+                      const contentType = res.headers.get('content-type');
+                      if (!res.ok || !contentType || !contentType.startsWith('image/')) {
+                          throw new Error("Proxy faalde of gaf geen afbeelding");
+                      }
+
+                      const blob = await res.blob();
+                      base64 = await new Promise<string>((resolve) => {
                           const reader = new FileReader();
                           reader.onloadend = () => resolve(reader.result as string);
-                          reader.readAsDataURL(proxyBlob);
+                          reader.readAsDataURL(blob);
                       });
-                      div.style.backgroundImage = `url("${proxyBase64}")`;
-                  } catch (proxyError) {
-                      console.error("Zelfs de proxy faalde voor:", originalSrc);
+                  } catch (err2) {
+                      console.error("Beide pogingen faalden voor:", originalSrc);
                   }
+              }
+
+              // Plak de foto erin als we er een hebben
+              if (base64) {
+                  div.style.backgroundImage = `url("${base64}")`; 
               }
           }
       }));
 
-      // AANGEPAST: Geef de browser 2 volle seconden om de gedownloade beelden te 'verven'
       if (btn) btn.innerText = "RENDERING...";
       await new Promise(r => setTimeout(r, 2000));
 
@@ -444,7 +461,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
       if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-sm">photo_camera</span> DOWNLOAD SHARE IMAGE';
     }
   };
-
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
