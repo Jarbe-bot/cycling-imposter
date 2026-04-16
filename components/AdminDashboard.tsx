@@ -308,7 +308,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     setPickerSearch('');
   };
 
-  // --- SCREENSHOT FUNCTIE MET DUBBELE PROXY FALLBACK ---
   const downloadShareImage = async () => {
     const element = document.getElementById('hidden-share-template');
     const btn = document.getElementById('download-share-btn');
@@ -328,7 +327,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
               let base64 = '';
               
               try {
-                  // POGING 1: Direct ophalen
                   const fetchUrl = originalSrc + (originalSrc.includes('?') ? '&' : '?') + 'notcache=' + new Date().getTime();
                   const res = await fetch(fetchUrl, { mode: 'cors' });
                   
@@ -345,7 +343,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                   });
               } catch (err1) {
                   try {
-                      // POGING 2: AllOrigins Proxy (Vaak stabieler)
                       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(originalSrc)}`;
                       const res = await fetch(proxyUrl);
                       
@@ -362,7 +359,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                       });
                   } catch (err2) {
                       try {
-                          // POGING 3: CorsProxy.io (De oude back-up)
                           const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(originalSrc)}`;
                           const res = await fetch(proxyUrl2);
                           
@@ -378,9 +374,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
                               reader.readAsDataURL(blob);
                           });
                       } catch (err3) {
-                          console.error("Alle pogingen faalden voor:", originalSrc);
-                          
-                          // POGING 4: Fallback icoontje ('?') tekenen
                           const fallbackCanvas = document.createElement('canvas');
                           fallbackCanvas.width = 128; 
                           fallbackCanvas.height = 128;
@@ -456,64 +449,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   return (
     <div className="bg-background-dark min-h-screen flex flex-col">
       
-      {/* --- VERBORGEN SCREENSHOT SJABLOON (1080x1350 STRICT FORMAT) --- */}
+      {/* --- COMPACTER VERBORGEN SCREENSHOT SJABLOON (1080x1350 STRICT FORMAT) --- */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', width: '1080px', height: '1350px', overflow: 'hidden' }}>
-        <div id="hidden-share-template" className="bg-[#102216] p-16 flex flex-col justify-between border-0" style={{ fontFamily: "'Lexend', sans-serif", width: '1080px', height: '1350px' }}>
+        <div id="hidden-share-template" className="bg-[#102216] p-12 flex flex-col justify-between border-0" style={{ fontFamily: "'Lexend', sans-serif", width: '1080px', height: '1350px', boxSizing: 'border-box' }}>
             
-            <div className="flex flex-col gap-10">
+            <div className="flex flex-col gap-8">
                 {/* HEADER */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-white text-6xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
-                        <p className="text-[#0df259] text-2xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
+                        <h1 className="text-white text-5xl font-extrabold tracking-tight" style={{ lineHeight: '1.2' }}>{selectedDate}</h1>
+                        <p className="text-[#0df259] text-xl uppercase tracking-widest font-bold mt-2" style={{ lineHeight: '1.2' }}>The Daily Pro Cycling Challenge</p>
                     </div>
                 </div>
 
                 {/* STATEMENT BOX */}
                 {localQuiz.statement && (
-                    <div className="bg-[#183320] p-10 rounded-3xl border border-[#2e5239]">
-                        <p className="text-[#0df259] text-2xl font-bold uppercase tracking-widest mb-4 opacity-80" style={{ lineHeight: '1.2' }}>The Criteria:</p>
-                        <p className="text-white text-4xl font-light tracking-tight break-words" style={{ lineHeight: '1.5' }}>
+                    <div className="bg-[#183320] p-8 rounded-3xl border border-[#2e5239]">
+                        <p className="text-[#0df259] text-xl font-bold uppercase tracking-widest mb-3 opacity-80" style={{ lineHeight: '1.2' }}>The Criteria:</p>
+                        <p className="text-white text-3xl font-light tracking-tight break-words" style={{ lineHeight: '1.4' }}>
                             "{localQuiz.statement}"
                         </p>
                     </div>
                 )}
 
                 {/* CYCLIST GRID */}
-                <div className="grid grid-cols-2 gap-x-10 gap-y-10">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                     {getShareCyclists().map((c, idx) => (
-                        <div key={idx} className="flex items-center gap-8 bg-[#183320] p-6 rounded-3xl border border-[#2e5239]">
+                        <div key={idx} className="flex items-center gap-6 bg-[#183320] p-5 rounded-3xl border border-[#2e5239]">
                             <div className="relative flex-shrink-0">
-                                <span className="absolute -top-4 -left-4 w-12 h-12 flex items-center justify-center bg-[#22492f] text-white rounded-full text-xl font-bold border-4 border-[#183320] z-10">#{idx + 1}</span>
+                                <span className="absolute -top-3 -left-3 w-10 h-10 flex items-center justify-center bg-[#22492f] text-white rounded-full text-lg font-bold border-4 border-[#183320] z-10">#{idx + 1}</span>
                                 {c.imageUrl ? (
                                     <div 
-                                        className="share-cyclist-photo w-28 h-28 rounded-full border-4 border-[#0df259] flex-shrink-0" 
+                                        className="share-cyclist-photo w-24 h-24 rounded-full border-4 border-[#0df259] flex-shrink-0" 
                                         data-img-src={c.imageUrl}
                                         style={{ 
                                             backgroundImage: `url('${c.imageUrl}')`,
                                             backgroundSize: 'cover',
                                             backgroundPosition: 'center',
-                                            minWidth: '112px', 
-                                            minHeight: '112px'
+                                            minWidth: '96px', 
+                                            minHeight: '96px'
                                         }}
                                     />
                                 ) : (
-                                    <div className="w-28 h-28 min-w-[112px] min-h-[112px] rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-5xl font-black">?</div>
+                                    <div className="w-24 h-24 min-w-[96px] min-h-[96px] rounded-full border-4 border-dashed border-[#22492f] flex items-center justify-center text-[#90cba4] text-4xl font-black">?</div>
                                 )}
                             </div>
-                            <div className="flex-1">
-                                <p className="text-white text-3xl font-bold pb-1 break-words" style={{ lineHeight: '1.2' }}>{c.name}</p>
-                                <p className="text-[#90cba4] text-xl font-medium mt-1 pb-1 break-words" style={{ lineHeight: '1.2' }}>{c.team}</p>
+                            <div className="flex-1 overflow-hidden">
+                                <p className="text-white text-2xl font-bold pb-1 truncate" style={{ lineHeight: '1.2' }}>{c.name}</p>
+                                <p className="text-[#90cba4] text-lg font-medium mt-1 pb-1 truncate" style={{ lineHeight: '1.2' }}>{c.team}</p>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* FOOTER - ALTIJD ONDERAAN VASTGEMAAKT */}
-            <div className="mt-auto pt-10 border-t border-[#2e5239] text-center pb-4">
-                <p className="text-white text-3xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposters</strong>?</p>
-                <p className="text-[#0df259] text-5xl font-black mt-6 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
+            {/* FOOTER - NU VEILIG BINNEN DE 1350PX BOUNDARY */}
+            <div className="mt-auto pt-6 border-t border-[#2e5239] text-center">
+                <p className="text-white text-2xl font-light" style={{ lineHeight: '1.2' }}>Can you avoid the <strong className="text-[#ef4444] font-bold">Imposters</strong>?</p>
+                <p className="text-[#0df259] text-4xl font-black mt-4 tracking-widest uppercase" style={{ lineHeight: '1.2' }}>CYCLINGIMPOSTER.COM</p>
             </div>
         </div>
       </div>
