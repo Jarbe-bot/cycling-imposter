@@ -234,30 +234,44 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
  const handleShare = async () => {
     const shareUrl = "https://cyclingimposter.com";
+    
+    // Bepaal per slot of de speler een punt heeft gekregen (groen) of niet (rood)
     const emojiGrid = activeQuiz.slots.map(slot => {
         const isSelected = selectedIds.includes(slot.cyclistId);
         const isImposter = slot.isImposter;
-        if (isSelected && !isImposter) return '🟩';
-        if (isSelected && isImposter) return '🟥';
-        if (!isSelected && isImposter) return '🟩';
-        return '⬜';
+        const gotPoint = (isSelected && !isImposter) || (!isSelected && isImposter);
+        return gotPoint ? '🟩' : '🟥';
     });
-    const row1 = emojiGrid.slice(0, 4).join(' ');
-    const row2 = emojiGrid.slice(4, 8).join(' ');
-    
-    const text = `Cycling Imposter | ${activeDate}\nScore: ${score}/8 (Streak 🔥${userStats.streak})\n\n${row1}\n${row2}\n\nCan you spot the fake rider?\n${shareUrl}`;
-    
-    // Check of het een mobiel apparaat is (waar de share-sheet handig is voor WhatsApp/Berichten)
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    if (isMobile && navigator.share) {
+    // Detecteer of het scherm groot genoeg is voor 4 kolommen (desktop/laptop)
+    const isDesktop = window.innerWidth >= 1024;
+
+    let rowsText = '';
+    if (isDesktop) {
+        // Desktop layout: 2 rijen van 4 emoji's (matcht de 4 kolommen)
+        const row1 = emojiGrid.slice(0, 4).join(' ');
+        const row2 = emojiGrid.slice(4, 8).join(' ');
+        rowsText = `${row1}\n${row2}`;
+    } else {
+        // Mobiele layout: 4 rijen van 2 emoji's (matcht de 2 kolommen)
+        const row1 = emojiGrid.slice(0, 2).join(' ');
+        const row2 = emojiGrid.slice(2, 4).join(' ');
+        const row3 = emojiGrid.slice(4, 6).join(' ');
+        const row4 = emojiGrid.slice(6, 8).join(' ');
+        rowsText = `${row1}\n${row2}\n${row3}\n${row4}`;
+    }
+    
+    const text = `Cycling Imposter | ${activeDate}\nScore: ${score}/8 (Streak 🔥${userStats.streak})\n\n${rowsText}\n\nCan you spot the fake rider?\n${shareUrl}`;
+    
+    const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobileDevice && navigator.share) {
         try {
             await navigator.share({ text: text });
             return;
         } catch (err) { console.log("Share cancelled", err); }
     }
 
-    // Voor laptops/desktops (of als fallback): direct naar het klembord kopiëren
     try {
         await navigator.clipboard.writeText(text);
         alert("Result copied to clipboard! 📋 Ready to paste.");
