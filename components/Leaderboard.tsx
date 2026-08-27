@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-export const Leaderboard = () => {
+interface LeaderboardProps {
+    onOpenArchive?: () => void;
+}
+
+export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'streak'>('daily');
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [weeklyData, setWeeklyData] = useState<any[]>([]);
-    const [prevWeekData, setPrevWeekData] = useState<any[]>([]); // NIEUW: Top 3 vorige week
+    const [prevWeekData, setPrevWeekData] = useState<any[]>([]); 
     const [streakData, setStreakData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -75,6 +79,18 @@ export const Leaderboard = () => {
 
                         {activeTab === 'weekly' && (
                             <div className="flex flex-col gap-4">
+                                {/* INFO BANNER OVER INHALEN VIA ARCHIEF */}
+                                <div className="bg-[#102316] border border-[#22492f] rounded-xl p-4 text-xs text-gray-300 text-center leading-relaxed">
+                                    💡 <strong className="text-white">Meedoen voor de week?</strong> Een dag gemist? Geen probleem! Speel de eerdere dagen van deze week in via het{' '}
+                                    <button 
+                                        onClick={onOpenArchive} 
+                                        className="text-primary font-bold underline hover:text-green-300 transition-colors cursor-pointer"
+                                    >
+                                        Archief
+                                    </button>
+                                    {' '}om alsnog punten te pakken voor dit klassement!
+                                </div>
+
                                 {/* PODIUM VORIGE WEEK */}
                                 {prevWeekData.length > 0 && (
                                     <div className="bg-gradient-to-b from-[#173322] to-[#0f2418] border border-primary/40 rounded-2xl p-5 shadow-xl mb-2">

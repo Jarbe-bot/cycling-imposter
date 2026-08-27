@@ -554,8 +554,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                                 </div>
                             </div>
                         )}
-                        {/* We geven de key mee zodat het leaderboard direct herlaadt na submit/username opslaan */}
-                        <Leaderboard key={leaderboardKey} />
+                        <Leaderboard 
+                            key={leaderboardKey} 
+                            onOpenArchive={openArchive} 
+                        />
                     </div>
                 )}
             </div>
@@ -582,7 +584,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                     <button onClick={() => setShowLeaderboardModal(false)} className="text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 <div className="flex-1 overflow-y-auto pr-2">
-                    <Leaderboard key={`modal-${leaderboardKey}`} />
+                    <Leaderboard 
+                        key={`modal-${leaderboardKey}`} 
+                        onOpenArchive={openArchive} 
+                    />
                 </div>
             </div>
         </div>
