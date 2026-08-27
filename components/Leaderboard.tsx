@@ -15,7 +15,12 @@ export const Leaderboard = () => {
     const fetchLeaderboards = async () => {
         setIsLoading(true);
         if (activeTab === 'daily') {
-            const { data } = await supabase.from('daily_leaderboard').select('*');
+            const today = new Date().toISOString().split('T')[0];
+            const { data } = await supabase
+                .from('daily_leaderboard')
+                .select('*')
+                .eq('quiz_date', today); // Filter streng op de datum van vandaag!
+            
             if (data) setDailyData(data);
         } else if (activeTab === 'monthly') {
             const { data } = await supabase.from('monthly_leaderboard').select('*');

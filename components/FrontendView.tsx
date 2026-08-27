@@ -192,15 +192,16 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
     try {
         const uid = localStorage.getItem('ci_user_id') || crypto.randomUUID();
-        const currentUsername = localStorage.getItem('ci_username');
+        const currentUsername = localStorage.getItem('ci_username'); // Haal op als hij al ingevuld was
         localStorage.setItem('ci_user_id', uid);
 
+        // STUUR NU ALLES IN ÉÉN KEER MEE
         await supabase.from('game_results').insert({
             quiz_date: activeDate,
             score: currentScore,
             max_score: 8,
             user_id: uid,
-            username: currentUsername || null,
+            username: currentUsername || null, // Direct meesturen!
             time_taken_ms: duration,
             is_perfect_score: currentScore === 8
         });
@@ -218,10 +219,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
     const uid = localStorage.getItem('ci_user_id');
     if (uid) {
+        // Update de bijnaam voor alle pogingen van deze anonieme ID in Supabase
         await supabase.from('game_results')
             .update({ username: cleanName })
-            .eq('user_id', uid)
-            .eq('quiz_date', activeDate); 
+            .eq('user_id', uid); 
     }
   };
 
@@ -536,7 +537,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
           )}
 
           <div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
-            <p className="text-xs text-gray-500 opacity-80">Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span></p>
+            <p className="text-xs text-gray-500 opacity-80">Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Fan Community</span></p>
             <div className="flex gap-4 text-xs text-gray-400">
               <a href="https://www.instagram.com/georgzimmermann_fa/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors hover:underline">Instagram</a>
               <span>•</span>
