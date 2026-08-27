@@ -436,10 +436,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const { days, firstDay } = getDaysInMonth(currentMonth);
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  const filteredPickerCyclists = cyclists.filter(c => 
-    c.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
-    c.team.toLowerCase().includes(pickerSearch.toLowerCase())
-  );
+const filteredPickerCyclists = cyclists.filter(c => {
+    const term = pickerSearch.toLowerCase().trim();
+    if (!term) return true; // Zorg dat we alle renners zien als de balk leeg is
+
+    // 1. Specifiek zoeken op LAND (start met @)
+    if (term.startsWith('@')) {
+        // De extra .trim() zorgt dat "@ bel" en "@bel" allebei perfect werken
+        const countryTerm = term.slice(1).trim(); 
+        const countryStr = c.country?.toLowerCase() || (c as any).nationality?.toLowerCase() || '';
+        return countryStr.includes(countryTerm);
+    }
+    
+    // 2. Specifiek zoeken op TEAM (start met #)
+    if (term.startsWith('#')) {
+        const teamTerm = term.slice(1).trim(); 
+        return c.team ? c.team.toLowerCase().includes(teamTerm) : false;
+    }
+    
+    // 3. Standaard zoekopdracht (ALLEEN NAAM & TEAM)
+    // Omdat we 'land' hier hebben weggehaald, geeft "fr" geen Franse renners meer!
+    const matchName = c.name ? c.name.toLowerCase().includes(term) : false;
+    const matchTeam = c.team ? c.team.toLowerCase().includes(term) : false;
+    
+    return matchName || matchTeam;
+});
 
   const maxGraphValue = Math.max(...dailyStats.map(s => s.onTime + s.late), 5);
 

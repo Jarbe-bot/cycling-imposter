@@ -3,6 +3,7 @@ import { Quiz, UserStats, Cyclist } from '../types';
 import { INITIAL_CYCLISTS } from '../constants';
 import { supabase } from '../supabaseClient';
 import { saveDailyResult, hasPlayedDate, getScoreForDate, migrateLegacyData } from '../utils/history';
+import { Leaderboard } from './Leaderboard';
 
 // --- HULP COMPONENT: COUNTDOWN TIMER ---
 const CountdownTimer = () => {
@@ -60,19 +61,37 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
 
+  // --- LEADERBOARD & TIMER & TABS STATES ---
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savedUsername, setSavedUsername] = useState<string | null>(null);
+  const [resultTab, setResultTab] = useState<'result' | 'leaderboard'>('result');
+
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
 
   useEffect(() => {
+    let uid = localStorage.getItem('ci_user_id');
+    if (!uid) {
+        uid = crypto.randomUUID();
+        localStorage.setItem('ci_user_id', uid);
+    }
+    const storedName = localStorage.getItem('ci_username');
+    if (storedName) {
+        setSavedUsername(storedName);
+    }
     checkPlayedStatus(activeDate);
   }, []);
 
   useEffect(() => {
     migrateLegacyData();
     checkPlayedStatus(activeDate);
+    setStartTime(Date.now());
+    setResultTab('result'); 
   }, [activeDate]);
 
   const checkPlayedStatus = (date: string) => {
@@ -88,7 +107,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-// Archive openen: Haal lijst van datums op
   const openArchive = async () => {
     setShowArchiveModal(true);
     const today = new Date().toISOString().split('T')[0];
@@ -96,18 +114,14 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     const { data } = await supabase
         .from('daily_quizzes')
         .select('date')
-        .lte('date', today) // Geen toekomst
+        .lte('date', today)
         .order('date', { ascending: false });
     
     if (data) {
-        // HIER FILTEREN WE DE TESTDATUMS ERUIT
-        // Voeg hier datums toe die je wilt verbergen
         const hiddenDates = ['2026-01-12', '2026-01-13']; 
-        
         const filteredList = data
             .map(d => d.date)
             .filter(date => !hiddenDates.includes(date));
-
         setAvailableDates(filteredList);
     }
   };
@@ -145,10 +159,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     );
   };
 
-const handleSubmit = async () => {
-    // 1. EERST CHECKEN: Was deze al gespeeld?
-    // We checken dit VOORDAT we de nieuwe score opslaan, anders is het altijd true.
+  const handleSubmit = async () => {
     const isReplay = hasPlayedDate(activeDate);
+    const endTime = Date.now();
+    const duration = startTime ? endTime - startTime : 0;
 
     let currentScore = 0;
     activeQuiz.slots.forEach(slot => {
@@ -159,42 +173,72 @@ const handleSubmit = async () => {
     
     setScore(currentScore);
     setIsSubmitted(true);
+    setResultTab('result');
     
     const today = new Date().toISOString().split('T')[0];
     
-    // Streak alleen updaten als het vandaag is én het geen replay is
     if (activeDate === today && !isReplay) {
         updateStats(currentScore);
     }
     
-    // Sla het resultaat lokaal op (zodat het vinkje in het archief komt)
     saveDailyResult(activeDate, currentScore);
     
-    createCelebration();
-
-    // 2. DE BEVEILIGING:
-    // Als dit een replay is (iemand speelt een oude datum opnieuw die hij al had),
-    // dan stoppen we HIER. We sturen niets naar de database.
-    if (isReplay) {
-        console.log("Replay detected: Score not sent to database to prevent pollution.");
-        return; 
+    // Alleen een dikke celebration bij 8/8!
+    if (currentScore === 8) {
+        createCelebration();
     }
 
-    // Alleen als het ECHT de eerste keer is voor deze datum op dit device, sturen we data
+    if (isReplay) return; 
+
     try {
+        const uid = localStorage.getItem('ci_user_id') || crypto.randomUUID();
+        const currentUsername = localStorage.getItem('ci_username');
+        localStorage.setItem('ci_user_id', uid);
+
         await supabase.from('game_results').insert({
             quiz_date: activeDate,
             score: currentScore,
-            max_score: 8
+            max_score: 8,
+            user_id: uid,
+            username: currentUsername || null,
+            time_taken_ms: duration,
+            is_perfect_score: currentScore === 8
         });
     } catch (error) {
         console.error("Kon score niet opslaan:", error);
     }
   };
 
+  const handleSaveUsername = async () => {
+    if (!usernameInput.trim()) return;
+    const cleanName = usernameInput.trim().slice(0, 15);
+    
+    localStorage.setItem('ci_username', cleanName);
+    setSavedUsername(cleanName);
+
+    const uid = localStorage.getItem('ci_user_id');
+    if (uid) {
+        await supabase.from('game_results')
+            .update({ username: cleanName })
+            .eq('user_id', uid)
+            .eq('quiz_date', activeDate); 
+    }
+  };
+
   const handleShare = async () => {
     const shareUrl = "https://cyclingimposter.com";
-    const text = `🚴 Cycling Imposter (${activeDate})\n🏆 Score: ${score}/8\n\nCan you spot the fake riders?\n👉 Play at: ${shareUrl}`;
+    const emojiGrid = activeQuiz.slots.map(slot => {
+        const isSelected = selectedIds.includes(slot.cyclistId);
+        const isImposter = slot.isImposter;
+        if (isSelected && !isImposter) return '🟩';
+        if (isSelected && isImposter) return '🟥';
+        if (!isSelected && isImposter) return '🟩';
+        return '⬜';
+    });
+    const row1 = emojiGrid.slice(0, 4).join(' ');
+    const row2 = emojiGrid.slice(4, 8).join(' ');
+    
+    const text = `Cycling Imposter | ${activeDate}\nScore: ${score}/8 (Streak 🔥${userStats.streak})\n\n${row1}\n${row2}\n\nCan you spot the fake rider?\n${shareUrl}`;
     
     if (navigator.share) {
         try {
@@ -206,6 +250,15 @@ const handleSubmit = async () => {
         await navigator.clipboard.writeText(text);
         alert("Result copied!");
     } catch (err) { alert("Could not share automatically."); }
+  };
+
+  const handleOpenLeaderboard = () => {
+      if (isSubmitted) {
+          setResultTab('leaderboard');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+          setShowLeaderboardModal(true);
+      }
   };
 
   const createCelebration = () => {
@@ -256,8 +309,84 @@ const handleSubmit = async () => {
     animation.onfinish = () => div.remove();
   };
 
-  const maxHistoryValue = Math.max(...Object.values(userStats.history), 1);
   const isToday = activeDate === new Date().toISOString().split('T')[0];
+
+  // --- DYNAMISCHE SCORE BOODSCHAP ---
+  const getScoreMessage = (s: number) => {
+    if (s === 8) return "Perfect Score! Master of the peloton! 🏆";
+    if (s >= 6) return "Great job! Almost perfect! 🔥";
+    if (s >= 4) return "Not bad, a solid effort! 👍";
+    if (s >= 1) return "Tough day in the saddle... 🚴";
+    return "A DNF for you, sadly 💥";
+  };
+
+  const renderCyclistGrid = () => (
+    <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4 w-full">
+        {activeQuiz.slots.map((slot) => {
+            const cyclist = activeCyclistList.find(c => c.id === slot.cyclistId);
+            if (!cyclist) return <div key={slot.cyclistId} className="aspect-[3/4] bg-[#102216] rounded-xl border border-dashed border-[#22492f] flex items-center justify-center text-xs text-gray-600">Loading...</div>;
+            
+            const isSelected = selectedIds.includes(cyclist.id);
+            const isImposter = slot.isImposter;
+            const isCorrect = (isSelected && !isImposter) || (!isSelected && isImposter);
+            
+            let borderClass = 'hover:shadow-xl';
+            let overlayColor = '';
+            let statusText = '';
+            let statusIcon = '';
+
+            if (isSubmitted) {
+            if (isImposter) {
+                borderClass = 'ring-4 ring-red-500/50 grayscale';
+                overlayColor = 'bg-red-900/40';
+                statusText = 'IMPOSTER';
+                statusIcon = 'cancel';
+            } else {
+                borderClass = 'ring-4 ring-green-500/50';
+                overlayColor = 'bg-green-900/40';
+                statusText = 'CORRECT';
+                statusIcon = 'check_circle';
+            }
+            if (selectedIds.length > 0) {
+                    if (isCorrect) {
+                    borderClass = 'ring-4 ring-green-500 ring-offset-2 ring-offset-background-dark';
+                    overlayColor = 'bg-green-900/60';
+                    statusText = isImposter ? 'CORRECTLY AVOIDED' : 'CORRECTLY PICKED';
+                } else {
+                    borderClass = 'ring-4 ring-red-500 ring-offset-2 ring-offset-background-dark';
+                    overlayColor = 'bg-red-900/60';
+                    statusText = isImposter ? 'MISSED IMPOSTER' : 'MISSED RIDER';
+                }
+            }
+            } else if (isSelected) {
+            borderClass = 'ring-4 ring-primary ring-offset-2 ring-offset-background-dark shadow-neon';
+            }
+
+            return (
+            <div key={cyclist.id} onClick={() => toggleSelect(cyclist.id)} className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-card-dark transition-all hover:-translate-y-1 ${borderClass}`}>
+                <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#0d1c12]">
+                <img src={cyclist.imageUrl} alt={cyclist.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')} />
+                {!isSubmitted && (
+                    <div className={`absolute top-3 right-3 z-20 flex size-8 items-center justify-center rounded-full border-2 transition-all ${isSelected ? 'bg-primary border-primary text-background-dark shadow-neon' : 'border-white/30 bg-black/20 opacity-0 group-hover:opacity-100'}`}>
+                    <span className="material-symbols-outlined font-bold text-sm">check</span>
+                    </div>
+                )}
+                {isSubmitted && (
+                    <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-300 group-hover:opacity-0 ${overlayColor}`}>
+                        <span className={`material-symbols-outlined text-4xl mb-2 ${statusText.includes('CORRECT') ? 'text-green-400' : 'text-red-400'}`}>{statusIcon}</span>
+                        <span className="font-bold text-sm tracking-widest text-white text-center px-2">{statusText}</span>
+                    </div>
+                )}
+                </div>
+                <div className="absolute bottom-0 left-0 z-20 w-full p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
+                <p className="text-base font-bold leading-tight text-white">{cyclist.name}</p>
+                <p className="text-xs text-gray-400">{cyclist.team}</p>
+                </div>
+            </div>
+            );
+        })}
+    </div>
+  );
 
   return (
     <div className="flex grow flex-col items-center w-full">
@@ -270,48 +399,19 @@ const handleSubmit = async () => {
             <h1 className="hidden text-xl font-bold tracking-tight text-white sm:block">Cycling Imposter</h1>
           </div>
           
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={openArchive}
-              className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95"
-              title="Archive"
-            >
-              <span className="material-symbols-outlined">calendar_month</span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={handleOpenLeaderboard} className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95" title="Leaderboard">
+                <span className="material-symbols-outlined">social_leaderboard</span>
             </button>
-
-            <button 
-              onClick={() => setShowRulesModal(true)}
-              className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95"
-              title="How to Play"
-            >
-              <span className="material-symbols-outlined">help</span>
-            </button>
-
-            {/* HIER IS DE KOFFIE KNOP */}
-            <button 
-              onClick={() => setShowSupportModal(true)}
-              className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-red-400 transition-all hover:bg-red-500/20 hover:scale-110 active:scale-95"
-              title="Support the Dev"
-            >
-              <span className="material-symbols-outlined">favorite</span>
-            </button>
-
-            <button 
-                onClick={triggerGigiSprint}
-                className="group relative hidden sm:flex h-10 items-center justify-center gap-2 overflow-hidden rounded-full bg-[#1a3322] px-5 text-sm font-bold text-primary transition-all hover:bg-primary hover:text-background-dark hover:shadow-neon active:scale-95"
-            >
-                <span className="material-symbols-outlined text-[20px] transition-transform group-hover:rotate-12 group-active:animate-ping">celebration</span>
-                <span className="truncate">Go Gigi</span>
-                <div className="absolute inset-0 -z-10 translate-y-full bg-gradient-to-t from-primary/20 to-transparent transition-transform duration-300 group-hover:translate-y-0"></div>
-            </button>
+            <button onClick={openArchive} className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95" title="Archive"><span className="material-symbols-outlined">calendar_month</span></button>
+            <button onClick={() => setShowRulesModal(true)} className="flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-primary transition-all hover:bg-primary/20 hover:scale-110 active:scale-95" title="How to Play"><span className="material-symbols-outlined">help</span></button>
+            <button onClick={() => setShowSupportModal(true)} className="flex hidden sm:flex size-10 items-center justify-center rounded-full bg-[#1a3322] text-red-400 transition-all hover:bg-red-500/20 hover:scale-110 active:scale-95" title="Support the Dev"><span className="material-symbols-outlined">favorite</span></button>
           </div>
         </div>
       </header>
 
       {isLoadingArchive && (
-         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-         </div>
+         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>
       )}
 
       <main className="flex grow flex-col items-center w-full pb-40">
@@ -328,106 +428,110 @@ const handleSubmit = async () => {
             <p className="mt-2 text-lg font-medium text-gray-400">Select the riders that match the statement.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-            {activeQuiz.slots.map((slot) => {
-              const cyclist = activeCyclistList.find(c => c.id === slot.cyclistId);
-              if (!cyclist) return <div key={slot.cyclistId} className="aspect-[3/4] bg-[#102216] rounded-xl border border-dashed border-[#22492f] flex items-center justify-center text-xs text-gray-600">Loading...</div>;
-              
-              const isSelected = selectedIds.includes(cyclist.id);
-              const isImposter = slot.isImposter;
-              const isCorrect = (isSelected && !isImposter) || (!isSelected && isImposter);
-              
-              let borderClass = 'hover:shadow-xl';
-              let overlayColor = '';
-              let statusText = '';
-              let statusIcon = '';
-
-              if (isSubmitted) {
-                if (isImposter) {
-                    borderClass = 'ring-4 ring-red-500/50 grayscale';
-                    overlayColor = 'bg-red-900/40';
-                    statusText = 'IMPOSTER';
-                    statusIcon = 'cancel';
-                } else {
-                    borderClass = 'ring-4 ring-green-500/50';
-                    overlayColor = 'bg-green-900/40';
-                    statusText = 'CORRECT';
-                    statusIcon = 'check_circle';
-                }
-                if (selectedIds.length > 0) {
-                     if (isCorrect) {
-                        borderClass = 'ring-4 ring-green-500 ring-offset-2 ring-offset-background-dark';
-                        overlayColor = 'bg-green-900/60';
-                        statusText = isImposter ? 'CORRECTLY AVOIDED' : 'CORRECTLY PICKED';
-                    } else {
-                        borderClass = 'ring-4 ring-red-500 ring-offset-2 ring-offset-background-dark';
-                        overlayColor = 'bg-red-900/60';
-                        statusText = isImposter ? 'MISSED IMPOSTER' : 'MISSED RIDER';
-                    }
-                }
-              } else if (isSelected) {
-                borderClass = 'ring-4 ring-primary ring-offset-2 ring-offset-background-dark shadow-neon';
-              }
-
-              return (
-                <div key={cyclist.id} onClick={() => toggleSelect(cyclist.id)} className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-card-dark transition-all hover:-translate-y-1 ${borderClass}`}>
-                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#0d1c12]">
-                    <img src={cyclist.imageUrl} alt={cyclist.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')} />
-                    {!isSubmitted && (
-                        <div className={`absolute top-3 right-3 z-20 flex size-8 items-center justify-center rounded-full border-2 transition-all ${isSelected ? 'bg-primary border-primary text-background-dark shadow-neon' : 'border-white/30 bg-black/20 opacity-0 group-hover:opacity-100'}`}>
-                        <span className="material-symbols-outlined font-bold text-sm">check</span>
-                        </div>
-                    )}
-                    {isSubmitted && (
-                        <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-300 group-hover:opacity-0 ${overlayColor}`}>
-                            <span className={`material-symbols-outlined text-4xl mb-2 ${statusText.includes('CORRECT') ? 'text-green-400' : 'text-red-400'}`}>{statusIcon}</span>
-                            <span className="font-bold text-sm tracking-widest text-white text-center px-2">{statusText}</span>
-                        </div>
-                    )}
-                  </div>
-                  <div className="absolute bottom-0 left-0 z-20 w-full p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
-                    <p className="text-base font-bold leading-tight text-white">{cyclist.name}</p>
-                    <p className="text-xs text-gray-400">{cyclist.team}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
           {!isSubmitted ? (
-            <div className="sticky bottom-6 z-30 mt-8 flex justify-center">
-              <button onClick={handleSubmit} className="flex items-center gap-2 bg-primary px-10 py-4 rounded-full font-bold text-xl text-background-dark shadow-neon hover:scale-105 transition-transform">
-                SUBMIT ANSWERS <span className="material-symbols-outlined">arrow_forward</span>
-              </button>
-            </div>
-          ) : (
-            <div className="mt-12 flex flex-col items-center w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden mb-8">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent"></div>
-                    <span className="material-symbols-outlined text-6xl text-primary mb-4 block">{score === 8 ? 'military_tech' : 'emoji_events'}</span>
-                    <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
-                    <p className="text-gray-400 mb-6">{score === 8 ? "Perfect Score!" : "Good job!"}</p>
-                    <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
-                        <span className="material-symbols-outlined">share</span> Share Result
+            <>
+                {renderCyclistGrid()}
+                
+                <div className="sticky bottom-6 z-30 mt-8 flex justify-center">
+                    <button onClick={handleSubmit} className="flex items-center gap-2 bg-primary px-10 py-4 rounded-full font-bold text-xl text-background-dark shadow-neon hover:scale-105 transition-transform">
+                        SUBMIT ANSWERS <span className="material-symbols-outlined">arrow_forward</span>
                     </button>
-                    {isToday && (
-                        <div className="grid grid-cols-2 gap-4 border-t border-[#22492f] py-6">
-                            <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p><p className="text-2xl font-bold text-white flex items-center justify-center gap-1">{userStats.streak} <span className="text-orange-500 text-lg">🔥</span></p></div>
-                            <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p><p className="text-2xl font-bold text-white">{userStats.played}</p></div>
-                        </div>
-                    )}
-                    {!isToday && (
-                        <div className="border-t border-[#22492f] py-6">
-                             <button onClick={() => loadQuizForDate(new Date().toISOString().split('T')[0])} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
-                        </div>
-                    )}
-                    {isToday && (
-                        <div className="border-t border-[#22492f] pt-4">
-                            <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Next Challenge In</p>
-                            <CountdownTimer />
-                        </div>
-                    )}
                 </div>
+            </>
+          ) : (
+            <div className="w-full flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                
+                {/* TABS MENU */}
+                <div className="flex bg-[#102316] p-1 rounded-xl mb-8 border border-[#22492f] w-full max-w-md">
+                    <button 
+                        onClick={() => setResultTab('result')} 
+                        className={`flex-1 py-3 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${resultTab === 'result' ? 'bg-primary text-background-dark shadow-neon' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <span className="material-symbols-outlined text-[18px]">sports_score</span> Result
+                    </button>
+                    <button 
+                        onClick={() => setResultTab('leaderboard')} 
+                        className={`flex-1 py-3 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${resultTab === 'leaderboard' ? 'bg-primary text-background-dark shadow-neon' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <span className="material-symbols-outlined text-[18px]">social_leaderboard</span> Leaderboard
+                    </button>
+                </div>
+
+                {/* TAB 1: RESULTAAT */}
+                {resultTab === 'result' && (
+                    <div className="w-full flex flex-col items-center">
+                        <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden mb-8">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent"></div>
+                            
+                            {/* DYNAMISCH ICOONTJE OP BASIS VAN SCORE */}
+                            <span className="material-symbols-outlined text-6xl text-primary mb-4 block">
+                                {score === 8 ? 'military_tech' : (score >= 4 ? 'thumb_up' : 'sentiment_dissatisfied')}
+                            </span>
+                            
+                            <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
+                            
+                            {/* DYNAMISCHE TEKST OP BASIS VAN SCORE */}
+                            <p className="text-gray-400 mb-6 font-medium">{getScoreMessage(score)}</p>
+                            
+                            <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
+                                <span className="material-symbols-outlined">share</span> Share Result
+                            </button>
+                            {isToday && (
+                                <div className="grid grid-cols-2 gap-4 border-t border-[#22492f] py-6">
+                                    <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p><p className="text-2xl font-bold text-white flex items-center justify-center gap-1">{userStats.streak} <span className="text-orange-500 text-lg">🔥</span></p></div>
+                                    <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p><p className="text-2xl font-bold text-white">{userStats.played}</p></div>
+                                </div>
+                            )}
+                            {!isToday && (
+                                <div className="border-t border-[#22492f] py-6">
+                                    <button onClick={() => loadQuizForDate(new Date().toISOString().split('T')[0])} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
+                                </div>
+                            )}
+                            {isToday && (
+                                <div className="border-t border-[#22492f] pt-4">
+                                    <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Next Challenge In</p>
+                                    <CountdownTimer />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="w-full mt-4">
+                            <h3 className="text-2xl font-bold text-white mb-6 text-center">Your Selection</h3>
+                            {renderCyclistGrid()}
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB 2: LEADERBOARD */}
+                {resultTab === 'leaderboard' && (
+                    <div className="w-full max-w-2xl flex flex-col items-center">
+                        {!savedUsername && (
+                            <div className="bg-[#0d1c12] border border-[#22492f] p-6 rounded-2xl w-full text-center shadow-lg mb-8 animate-in fade-in zoom-in duration-500">
+                                <span className="material-symbols-outlined text-3xl text-primary mb-2">social_leaderboard</span>
+                                <h3 className="text-xl font-bold text-white mb-1">Claim your spot! 🏆</h3>
+                                <p className="text-gray-400 mb-4 text-sm">Pick a username to get on the leaderboard.</p>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <input 
+                                        type="text" 
+                                        maxLength={15}
+                                        placeholder="GoGigi22"
+                                        value={usernameInput}
+                                        onChange={(e) => setUsernameInput(e.target.value)}
+                                        className="flex-1 bg-[#102316] border border-[#22492f] rounded-xl p-3 text-white focus:border-primary outline-none text-center font-bold"
+                                    />
+                                    <button 
+                                        onClick={handleSaveUsername}
+                                        disabled={!usernameInput.trim()}
+                                        className="bg-primary text-background-dark font-bold py-3 px-6 rounded-xl transition-all disabled:opacity-50 hover:bg-green-400"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        <Leaderboard key={savedUsername || 'anon'} />
+                    </div>
+                )}
             </div>
           )}
 
@@ -443,12 +547,27 @@ const handleSubmit = async () => {
         </div>
       </main>
 
+      {/* MODALS VOOR NAVIGATIE (ARCHIEF, LEADERBOARD, REGELS, SUPPORT) */}
+      {showLeaderboardModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#0d1c12] border border-[#22492f] w-full max-w-2xl rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary">social_leaderboard</span> Leaderboard</h3>
+                    <button onClick={() => setShowLeaderboardModal(false)} className="text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
+                </div>
+                <div className="flex-1 overflow-y-auto pr-2">
+                    <Leaderboard />
+                </div>
+            </div>
+        </div>
+      )}
+
       {showArchiveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[80vh]">
+            <div className="bg-[#0d1c12] border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[80vh]">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary">history</span> Archive</h3>
-                    <button onClick={() => setShowArchiveModal(false)} className="text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
+                    <button onClick={() => setShowArchiveModal(false)} className="text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                     {availableDates.map(date => {
@@ -475,8 +594,8 @@ const handleSubmit = async () => {
 
       {showRulesModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
+            <div className="bg-[#0d1c12] border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                <button onClick={() => setShowRulesModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 <div className="flex flex-col text-left">
                     <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-3xl text-primary">help</span><h3 className="text-2xl font-bold text-white">How to Play</h3></div>
                     <ul className="space-y-4 text-sm text-gray-300">
@@ -492,8 +611,8 @@ const handleSubmit = async () => {
 
       {showSupportModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-surface-dark border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                <button onClick={() => setShowSupportModal(false)} className="absolute top-4 right-4 text-text-muted hover:text-white"><span className="material-symbols-outlined">close</span></button>
+            <div className="bg-[#0d1c12] border border-[#22492f] w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                <button onClick={() => setShowSupportModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 <div className="flex flex-col items-center text-center">
                     <div className="bg-red-500/10 p-4 rounded-full mb-4"><span className="material-symbols-outlined text-4xl text-red-500">favorite</span></div>
                     <h3 className="text-2xl font-bold text-white mb-2">Enjoying the Game?</h3>
