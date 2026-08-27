@@ -72,7 +72,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   const [savedUsername, setSavedUsername] = useState<string | null>(null);
   const [resultTab, setResultTab] = useState<'result' | 'leaderboard'>('result');
   
-  // NIEUW: Refresh trigger zodat het leaderboard direct update na opslaan/submitten
+  // Refresh trigger zodat het leaderboard direct update na opslaan/submitten
   const [leaderboardKey, setLeaderboardKey] = useState<number>(0);
 
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
@@ -102,7 +102,14 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
         const savedScore = getScoreForDate(date);
         setScore(savedScore || 0);
         setIsSubmitted(true);
-        setSelectedIds([]);
+        
+        // Herstel de selecties uit localStorage zodat de share-grid exact weet wat je koos
+        const savedSelected = localStorage.getItem(`ci_selected_${date}`);
+        if (savedSelected) {
+            setSelectedIds(JSON.parse(savedSelected));
+        } else {
+            setSelectedIds([]);
+        }
     } else {
         setIsSubmitted(false);
         setScore(0);
@@ -186,6 +193,9 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     
     saveDailyResult(activeDate, currentScore);
     
+    // SLA DE SELECTIES OP IN LOCALSTORAGE VOOR DE SHARE GRID!
+    localStorage.setItem(`ci_selected_${activeDate}`, JSON.stringify(selectedIds));
+    
     if (currentScore === 8) {
         createCelebration();
     }
@@ -232,7 +242,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
- const handleShare = async () => {
+  const handleShare = async () => {
     const shareUrl = "https://cyclingimposter.com";
     
     // Bepaal per slot of de speler een punt heeft gekregen (groen) of niet (rood)
