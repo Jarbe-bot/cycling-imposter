@@ -5,6 +5,7 @@ export const Leaderboard = () => {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'streak'>('daily');
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [weeklyData, setWeeklyData] = useState<any[]>([]);
+    const [prevWeekData, setPrevWeekData] = useState<any[]>([]); // NIEUW: Top 3 vorige week
     const [streakData, setStreakData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -23,8 +24,10 @@ export const Leaderboard = () => {
             
             if (data) setDailyData(data);
         } else if (activeTab === 'weekly') {
-            const { data } = await supabase.from('weekly_leaderboard').select('*');
-            if (data) setWeeklyData(data);
+            const { data: currentWeek } = await supabase.from('weekly_leaderboard').select('*');
+            const { data: prevWeek } = await supabase.from('previous_week_leaderboard').select('*');
+            if (currentWeek) setWeeklyData(currentWeek);
+            if (prevWeek) setPrevWeekData(prevWeek);
         } else if (activeTab === 'streak') {
             const { data } = await supabase.from('user_streaks').select('*').order('current_streak', { ascending: false }).limit(50);
             if (data) setStreakData(data);
@@ -71,20 +74,50 @@ export const Leaderboard = () => {
                         )}
 
                         {activeTab === 'weekly' && (
-                            weeklyData.length > 0 ? weeklyData.map((player, idx) => (
-                                <div key={idx} className="flex items-center justify-between bg-[#1a3322] p-4 rounded-xl border border-[#22492f]">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-gray-500 font-bold w-6 text-center">#{idx + 1}</span>
-                                        <span className="text-white font-bold">{player.username}</span>
+                            <div className="flex flex-col gap-4">
+                                {/* PODIUM VORIGE WEEK */}
+                                {prevWeekData.length > 0 && (
+                                    <div className="bg-gradient-to-b from-[#173322] to-[#0f2418] border border-primary/40 rounded-2xl p-5 shadow-xl mb-2">
+                                        <div className="flex items-center justify-center gap-2 mb-3">
+                                            <span className="material-symbols-outlined text-yellow-400 text-lg">emoji_events</span>
+                                            <h3 className="text-white font-black text-xs uppercase tracking-wider">Hall of Fame • Vorige Week</h3>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3 text-center">
+                                            {prevWeekData.map((player, idx) => {
+                                                const medals = ['🥇', '🥈', '🥉'];
+                                                const borderColors = ['border-yellow-500/60 bg-yellow-500/5', 'border-gray-400/40 bg-gray-400/5', 'border-amber-700/40 bg-amber-700/5'];
+                                                return (
+                                                    <div key={idx} className={`border ${borderColors[idx]} rounded-xl p-3 flex flex-col items-center justify-center relative`}>
+                                                        <span className="text-2xl mb-1">{medals[idx]}</span>
+                                                        <p className="text-white font-bold text-xs truncate w-full">{player.username}</p>
+                                                        <p className="text-primary font-mono font-bold text-xs mt-1">{player.total_score} pts</p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs text-gray-400">({player.games_played} games)</span>
-                                        <span className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-xs font-bold">
-                                            {player.total_score} pts
-                                        </span>
-                                    </div>
+                                )}
+
+                                {/* HUIDIGE WEEK LIJST */}
+                                <div className="flex items-center justify-between px-1">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Huidig Stand</h4>
                                 </div>
-                            )) : <p className="text-center text-gray-500 py-10">No data for this week.</p>
+
+                                {weeklyData.length > 0 ? weeklyData.map((player, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-[#1a3322] p-4 rounded-xl border border-[#22492f]">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-gray-500 font-bold w-6 text-center">#{idx + 1}</span>
+                                            <span className="text-white font-bold">{player.username}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-gray-400">({player.games_played} games)</span>
+                                            <span className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-xs font-bold">
+                                                {player.total_score} pts
+                                            </span>
+                                        </div>
+                                    </div>
+                                )) : <p className="text-center text-gray-500 py-10">No data for this week.</p>}
+                            </div>
                         )}
 
                         {activeTab === 'streak' && (
