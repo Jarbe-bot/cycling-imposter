@@ -232,7 +232,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-  const handleShare = async () => {
+ const handleShare = async () => {
     const shareUrl = "https://cyclingimposter.com";
     const emojiGrid = activeQuiz.slots.map(slot => {
         const isSelected = selectedIds.includes(slot.cyclistId);
@@ -247,16 +247,23 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     
     const text = `Cycling Imposter | ${activeDate}\nScore: ${score}/8 (Streak 🔥${userStats.streak})\n\n${row1}\n${row2}\n\nCan you spot the fake rider?\n${shareUrl}`;
     
-    if (navigator.share) {
+    // Check of het een mobiel apparaat is (waar de share-sheet handig is voor WhatsApp/Berichten)
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile && navigator.share) {
         try {
             await navigator.share({ text: text });
             return;
         } catch (err) { console.log("Share cancelled", err); }
     }
+
+    // Voor laptops/desktops (of als fallback): direct naar het klembord kopiëren
     try {
         await navigator.clipboard.writeText(text);
-        alert("Result copied!");
-    } catch (err) { alert("Could not share automatically."); }
+        alert("Result copied to clipboard! 📋 Ready to paste.");
+    } catch (err) { 
+        alert("Could not copy automatically."); 
+    }
   };
 
   const handleOpenLeaderboard = () => {
