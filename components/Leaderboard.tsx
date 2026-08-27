@@ -79,16 +79,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
 
                         {activeTab === 'weekly' && (
                             <div className="flex flex-col gap-4">
-                                {/* INFO BANNER OVER INHALEN VIA ARCHIEF */}
+                                {/* INFO BANNER (ENGLISH) */}
                                 <div className="bg-[#102316] border border-[#22492f] rounded-xl p-4 text-xs text-gray-300 text-center leading-relaxed">
-                                    💡 <strong className="text-white">Meedoen voor de week?</strong> Een dag gemist? Geen probleem! Speel de eerdere dagen van deze week in via het{' '}
+                                    💡 <strong className="text-white">Playing for the weekly rank?</strong> Missed a day? No problem! Play earlier days of this week via the{' '}
                                     <button 
                                         onClick={onOpenArchive} 
                                         className="text-primary font-bold underline hover:text-green-300 transition-colors cursor-pointer"
                                     >
-                                        Archief
+                                        Archive
                                     </button>
-                                    {' '}om alsnog punten te pakken voor dit klassement!
+                                    {' '}to still score points for this leaderboard!
                                 </div>
 
                                 {/* PODIUM VORIGE WEEK */}
@@ -96,7 +96,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
                                     <div className="bg-gradient-to-b from-[#173322] to-[#0f2418] border border-primary/40 rounded-2xl p-5 shadow-xl mb-2">
                                         <div className="flex items-center justify-center gap-2 mb-3">
                                             <span className="material-symbols-outlined text-yellow-400 text-lg">emoji_events</span>
-                                            <h3 className="text-white font-black text-xs uppercase tracking-wider">Hall of Fame • Vorige Week</h3>
+                                            <h3 className="text-white font-black text-xs uppercase tracking-wider">Hall of Fame • Last Week</h3>
                                         </div>
                                         <div className="grid grid-cols-3 gap-3 text-center">
                                             {prevWeekData.map((player, idx) => {
@@ -116,7 +116,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
 
                                 {/* HUIDIGE WEEK LIJST */}
                                 <div className="flex items-center justify-between px-1">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Huidig Stand</h4>
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Current Standings</h4>
                                 </div>
 
                                 {weeklyData.length > 0 ? weeklyData.map((player, idx) => (
