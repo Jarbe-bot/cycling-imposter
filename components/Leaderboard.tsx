@@ -187,17 +187,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
                         </div>
 
                         <div className="space-y-3 text-xs text-gray-300 leading-relaxed">
-                            <p>Your daily streak is stored securely in your browser's local storage. To make sure your browser never accidentally wipes it, follow these tips per platform:</p>
+                            <p>Your daily streak is stored safely in your browser. To prevent your device from accidentally wiping it, keep these things in mind:</p>
                             
                             <div className="bg-[#1a3322] p-3 rounded-xl border border-[#22492f]">
                                 <strong className="text-white block mb-1">📱 For iOS (iPhone / iPad):</strong>
-                                Apple's Safari browser can clear site data after 7 days of inactivity. 
-                                <span className="text-primary font-bold block mt-1">Fix: Open the site in Safari, tap the Share icon, and select "Add to Home Screen". Play directly from that app icon!</span>
+                                iOS Safari can occasionally clear website storage and cache automatically to manage device memory, or if opened in Private/Incognito mode. 
+                                <span className="text-primary font-bold block mt-1">Fix: Open the site in Safari, tap the Share icon, and select "Add to Home Screen". Playing from that home screen icon gives the app permanent, protected storage!</span>
                             </div>
 
                             <div className="bg-[#1a3322] p-3 rounded-xl border border-[#22492f]">
                                 <strong className="text-white block mb-1">💻 For Android / Windows / Mac:</strong>
-                                Browsers like Chrome or Edge keep your data safe by default. However, <span className="text-white">manually clearing browser history, cookies, or site data</span> will wipe your streak. Avoid clearing storage data for this site!
+                                Browsers keep your data safe by default. However, <span className="text-white">manually clearing browser history, cookies, or site data</span> will wipe your streak. Avoid clearing storage data for this site!
                             </div>
                         </div>
 
