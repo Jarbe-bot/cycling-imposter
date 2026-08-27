@@ -80,7 +80,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   useEffect(() => {
     let uid = localStorage.getItem('ci_user_id');
     if (!uid) {
-        uid = crypto.randomUUID();
+        // Veilige generator met fallback voor oudere iPhones of strikte browsers
+        try {
+            uid = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        } catch (e) {
+            uid = 'fallback-' + Date.now() + '-' + Math.random();
+        }
         localStorage.setItem('ci_user_id', uid);
     }
     const storedName = localStorage.getItem('ci_username');

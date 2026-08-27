@@ -75,20 +75,27 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const updateUserStats = (score: number) => {
-    setUserStats(prev => {
-      const newStats = {
-        played: prev.played + 1,
-        streak: score >= 4 ? prev.streak + 1 : 0, 
-        history: {
-          ...prev.history,
-          [score]: (prev.history[score] || 0) + 1
-        }
-      };
-      localStorage.setItem('cycling_imposter_stats', JSON.stringify(newStats));
-      return newStats;
-    });
-  };
+const updateUserStats = (score: number, quizDate: string) => {
+  const today = new Date().toISOString().split('T')[0];
+  const isToday = quizDate === today;
+
+  setUserStats(prev => {
+    const newStats = {
+      played: prev.played + 1,
+      // De streak past zich ALLEEN aan als het de dag van vandaag is!
+      // Bij een archief-dag blijft je huidige streak exact zoals hij was.
+      streak: isToday 
+        ? (score >= 4 ? prev.streak + 1 : 0) 
+        : prev.streak, 
+      history: {
+        ...prev.history,
+        [score]: (prev.history[score] || 0) + 1
+      }
+    };
+    localStorage.setItem('cycling_imposter_stats', JSON.stringify(newStats));
+    return newStats;
+  });
+};
 
 // NIEUW: HET LAADSCHERM MET SVG (Geen tekst-flits meer!)
   if (isLoading) {

@@ -12,6 +12,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
     const [prevWeekData, setPrevWeekData] = useState<any[]>([]); 
     const [streakData, setStreakData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    
+    // STATE VOOR DE STREAK HELP POPUP
+    const [showStreakHelpModal, setShowStreakHelpModal] = useState(false);
 
     useEffect(() => {
         fetchLeaderboards();
@@ -46,7 +49,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
     };
 
     return (
-        <div className="bg-[#0d1c12] p-6 rounded-2xl border border-[#22492f] max-w-2xl mx-auto w-full mt-8">
+        <div className="bg-[#0d1c12] p-6 rounded-2xl border border-[#22492f] max-w-2xl mx-auto w-full mt-8 relative">
             <h2 className="text-white text-2xl font-black mb-6 text-center uppercase tracking-widest">Leaderboards</h2>
             
             <div className="flex bg-[#102316] p-1 rounded-xl mb-6 border border-[#22492f]">
@@ -79,7 +82,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
 
                         {activeTab === 'weekly' && (
                             <div className="flex flex-col gap-4">
-                                {/* INFO BANNER (ENGLISH) */}
+                                {/* INFO BANNER */}
                                 <div className="bg-[#102316] border border-[#22492f] rounded-xl p-4 text-xs text-gray-300 text-center leading-relaxed">
                                     💡 <strong className="text-white">Playing for the weekly rank?</strong> Missed a day? No problem! Play earlier days of this week via the{' '}
                                     <button 
@@ -137,22 +140,78 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
                         )}
 
                         {activeTab === 'streak' && (
-                            streakData.length > 0 ? streakData.map((player, idx) => (
-                                <div key={idx} className="flex items-center justify-between bg-[#1a3322] p-4 rounded-xl border border-[#22492f]">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-gray-500 font-bold w-6 text-center">#{idx + 1}</span>
-                                        <span className="text-white font-bold">{player.username}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-orange-400 font-bold">
-                                        <span className="material-symbols-outlined text-sm">local_fire_department</span>
-                                        {player.current_streak}
-                                    </div>
+                            <div className="flex flex-col gap-4">
+                                {/* TIP BANNER VOOR STREAK BEHOUD */}
+                                <div className="bg-[#102316] border border-[#22492f] rounded-xl p-3 text-xs text-gray-300 flex items-center justify-between px-4">
+                                    <span>🔥 How to keep your streak safe?</span>
+                                    <button 
+                                        onClick={() => setShowStreakHelpModal(true)}
+                                        className="text-primary font-bold underline hover:text-green-300 transition-colors cursor-pointer"
+                                    >
+                                        Read tip
+                                    </button>
                                 </div>
-                            )) : <p className="text-center text-gray-500 py-10">No active streaks found.</p>
+
+                                {streakData.length > 0 ? streakData.map((player, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-[#1a3322] p-4 rounded-xl border border-[#22492f]">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-gray-500 font-bold w-6 text-center">#{idx + 1}</span>
+                                            <span className="text-white font-bold">{player.username}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-orange-400 font-bold">
+                                            <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                                            {player.current_streak}
+                                        </div>
+                                    </div>
+                                )) : <p className="text-center text-gray-500 py-10">No active streaks found.</p>}
+                            </div>
                         )}
                     </>
                 )}
             </div>
+
+            {/* STREAK HELP POPUP MODAL */}
+            {showStreakHelpModal && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0d1c12] border border-[#22492f] w-full max-w-md rounded-2xl p-6 shadow-2xl relative text-left">
+                        <button 
+                            onClick={() => setShowStreakHelpModal(false)} 
+                            className="absolute top-4 right-4 text-gray-500 hover:text-white"
+                        >
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="material-symbols-outlined text-3xl text-orange-400">local_fire_department</span>
+                            <h3 className="text-xl font-bold text-white">Protect Your Streak</h3>
+                        </div>
+
+                        <div className="space-y-3 text-xs text-gray-300 leading-relaxed">
+                            <p>Your daily streak is stored securely in your browser's local storage. To make sure your browser never accidentally wipes it, follow these tips per platform:</p>
+                            
+                            <div className="bg-[#1a3322] p-3 rounded-xl border border-[#22492f]">
+                                <strong className="text-white block mb-1">📱 For iOS (iPhone / iPad):</strong>
+                                Apple's Safari browser can clear site data after 7 days of inactivity. 
+                                <span className="text-primary font-bold block mt-1">Fix: Open the site in Safari, tap the Share icon, and select "Add to Home Screen". Play directly from that app icon!</span>
+                            </div>
+
+                            <div className="bg-[#1a3322] p-3 rounded-xl border border-[#22492f]">
+                                <strong className="text-white block mb-1">💻 For Android / Windows / Mac:</strong>
+                                Browsers like Chrome or Edge keep your data safe by default. However, <span className="text-white">manually clearing browser history, cookies, or site data</span> will wipe your streak. Avoid clearing storage data for this site!
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-[#22492f] text-center">
+                            <button 
+                                onClick={() => setShowStreakHelpModal(false)} 
+                                className="bg-primary text-background-dark font-bold py-2.5 px-6 rounded-xl hover:scale-105 transition-transform text-xs cursor-pointer"
+                            >
+                                Got it!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
