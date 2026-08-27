@@ -71,6 +71,9 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   const [usernameInput, setUsernameInput] = useState('');
   const [savedUsername, setSavedUsername] = useState<string | null>(null);
   const [resultTab, setResultTab] = useState<'result' | 'leaderboard'>('result');
+  
+  // NIEUW: Refresh trigger zodat het leaderboard direct update na opslaan/submitten
+  const [leaderboardKey, setLeaderboardKey] = useState<number>(0);
 
   const activeCyclistList = cyclists.length > 0 ? cyclists : INITIAL_CYCLISTS;
 
@@ -183,7 +186,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     
     saveDailyResult(activeDate, currentScore);
     
-    // Alleen een dikke celebration bij 8/8!
     if (currentScore === 8) {
         createCelebration();
     }
@@ -192,19 +194,21 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
     try {
         const uid = localStorage.getItem('ci_user_id') || crypto.randomUUID();
-        const currentUsername = localStorage.getItem('ci_username'); // Haal op als hij al ingevuld was
+        const currentUsername = localStorage.getItem('ci_username');
         localStorage.setItem('ci_user_id', uid);
 
-        // STUUR NU ALLES IN ÉÉN KEER MEE
         await supabase.from('game_results').insert({
             quiz_date: activeDate,
             score: currentScore,
             max_score: 8,
             user_id: uid,
-            username: currentUsername || null, // Direct meesturen!
+            username: currentUsername || null,
             time_taken_ms: duration,
             is_perfect_score: currentScore === 8
         });
+
+        // Trigger direct een leaderboard refresh
+        setLeaderboardKey(prev => prev + 1);
     } catch (error) {
         console.error("Kon score niet opslaan:", error);
     }
@@ -219,10 +223,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
     const uid = localStorage.getItem('ci_user_id');
     if (uid) {
-        // Update de bijnaam voor alle pogingen van deze anonieme ID in Supabase
         await supabase.from('game_results')
             .update({ username: cleanName })
             .eq('user_id', uid); 
+
+        // Trigger direct een leaderboard refresh na het opslaan van de naam
+        setLeaderboardKey(prev => prev + 1);
     }
   };
 
@@ -270,16 +276,6 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     }
   };
 
-  const triggerGigiSprint = () => {
-    const items = ['🚴', '💨', '⚡', 'GO GIGI!', 'FULL GAS!', '🔥'];
-    const container = document.body;
-    for (let i = 0; i < 25; i++) {
-        setTimeout(() => {
-            spawnParticle(container, items[Math.floor(Math.random() * items.length)], 'fast');
-        }, i * 40); 
-    }
-  };
-
   const spawnParticle = (container: HTMLElement, content: string, speed: 'slow' | 'fast') => {
     const div = document.createElement('div');
     div.className = 'celebration-emoji'; 
@@ -312,13 +308,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
   const isToday = activeDate === new Date().toISOString().split('T')[0];
 
-  // --- DYNAMISCHE SCORE BOODSCHAP ---
   const getScoreMessage = (s: number) => {
     if (s === 8) return "Perfect Score! Master of the peloton! 🏆";
     if (s >= 6) return "Great job! Almost perfect! 🔥";
     if (s >= 4) return "Not bad, a solid effort! 👍";
     if (s >= 1) return "Tough day in the saddle... 🚴";
-    return "A DNF for you, sadly 💥";
+    return "A flat tire from the start! 💥";
   };
 
   const renderCyclistGrid = () => (
@@ -464,14 +459,12 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                         <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden mb-8">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent"></div>
                             
-                            {/* DYNAMISCH ICOONTJE OP BASIS VAN SCORE */}
                             <span className="material-symbols-outlined text-6xl text-primary mb-4 block">
                                 {score === 8 ? 'military_tech' : (score >= 4 ? 'thumb_up' : 'sentiment_dissatisfied')}
                             </span>
                             
                             <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
                             
-                            {/* DYNAMISCHE TEKST OP BASIS VAN SCORE */}
                             <p className="text-gray-400 mb-6 font-medium">{getScoreMessage(score)}</p>
                             
                             <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
@@ -530,14 +523,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                                 </div>
                             </div>
                         )}
-                        <Leaderboard key={savedUsername || 'anon'} />
+                        {/* We geven de key mee zodat het leaderboard direct herlaadt na submit/username opslaan */}
+                        <Leaderboard key={leaderboardKey} />
                     </div>
                 )}
             </div>
           )}
 
           <div className="mt-24 mb-8 flex flex-col items-center gap-4 text-center w-full">
-            <p className="text-xs text-gray-500 opacity-80">Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Fan Community</span></p>
+            <p className="text-xs text-gray-500 opacity-80">Proudly presented by the <span className="font-bold text-primary">Georg Zimmermann Community</span></p>
             <div className="flex gap-4 text-xs text-gray-400">
               <a href="https://www.instagram.com/georgzimmermann_fa/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors hover:underline">Instagram</a>
               <span>•</span>
@@ -557,7 +551,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                     <button onClick={() => setShowLeaderboardModal(false)} className="text-gray-500 hover:text-white"><span className="material-symbols-outlined">close</span></button>
                 </div>
                 <div className="flex-1 overflow-y-auto pr-2">
-                    <Leaderboard />
+                    <Leaderboard key={`modal-${leaderboardKey}`} />
                 </div>
             </div>
         </div>
