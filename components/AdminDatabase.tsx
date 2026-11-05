@@ -18,6 +18,10 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
   const [isLoading, setIsLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Foto-check: null = geen filter actief, anders de IDs met een kapotte foto
+  const [brokenIds, setBrokenIds] = useState<string[] | null>(null);
+  const [isCheckingImages, setIsCheckingImages] = useState(false);
+
   const [newCyclist, setNewCyclist] = useState<Partial<Cyclist>>({
     name: '', team: '', country: '', status: 'active', imageUrl: ''
   });
@@ -118,6 +122,7 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
 
         if (editingId) {
             setCyclists(prev => prev.map(c => c.id === editingId ? formattedCyclist : c));
+            setBrokenIds(prev => prev ? prev.filter(id => id !== editingId) : prev);
         } else {
             setCyclists(prev => [...prev, formattedCyclist]);
         }
@@ -126,6 +131,26 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
         resetForm();
     }
     setIsLoading(false);
+  };
+
+  // Probeert een afbeelding te laden; false bij lege URL, fout of timeout
+  const imageLoads = (url?: string): Promise<boolean> =>
+    new Promise(resolve => {
+      if (!url) return resolve(false);
+      const img = new Image();
+      const timer = setTimeout(() => resolve(false), 10000);
+      img.onload = () => { clearTimeout(timer); resolve(true); };
+      img.onerror = () => { clearTimeout(timer); resolve(false); };
+      img.src = url;
+    });
+
+  const handleCheckImages = async () => {
+    setIsCheckingImages(true);
+    const results = await Promise.all(
+      cyclists.map(async c => ({ id: c.id, ok: await imageLoads(c.imageUrl) }))
+    );
+    setBrokenIds(results.filter(r => !r.ok).map(r => r.id));
+    setIsCheckingImages(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -146,7 +171,7 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
         status: cyclist.status,
         imageUrl: cyclist.image_url || cyclist.imageUrl
     });
-    setInputType('url'); 
+    setInputType(brokenIds?.includes(cyclist.id) ? 'upload' : 'url');
     setShowAddModal(true);
   };
 
@@ -162,10 +187,12 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
     setInputType('upload');
   };
 
-  const filteredCyclists = cyclists.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.team.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCyclists = cyclists
+    .filter(c => !brokenIds || brokenIds.includes(c.id))
+    .filter(c => 
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      c.team.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
  return (
     <div className="flex h-screen overflow-hidden bg-background-dark">
@@ -193,10 +220,27 @@ const AdminDatabase: React.FC<AdminDatabaseProps> = ({ cyclists, setCyclists, on
             <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <h2 className="text-white text-2xl md:text-3xl font-black">Cyclist Database</h2>
                 
-                <button onClick={handleAddNewClick} className="bg-primary text-[#102316] px-6 py-3 rounded-xl font-bold shadow-neon flex items-center justify-center gap-2 w-full md:w-auto active:scale-95 transition-transform">
-                    <span className="material-symbols-outlined">add</span> Add Cyclist
-                </button>
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <button onClick={handleCheckImages} disabled={isCheckingImages} className="bg-[#102216] text-primary border border-[#22492f] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 w-full md:w-auto active:scale-95 transition-transform disabled:opacity-60">
+                        <span className="material-symbols-outlined">image_search</span> {isCheckingImages ? 'Checking...' : 'Check Photos'}
+                    </button>
+                    <button onClick={handleAddNewClick} className="bg-primary text-[#102316] px-6 py-3 rounded-xl font-bold shadow-neon flex items-center justify-center gap-2 w-full md:w-auto active:scale-95 transition-transform">
+                        <span className="material-symbols-outlined">add</span> Add Cyclist
+                    </button>
+                </div>
             </div>
+
+            {/* RESULTAAT FOTO-CHECK */}
+            {brokenIds && (
+                <div className={`flex items-center justify-between gap-4 p-4 rounded-xl border ${brokenIds.length ? 'bg-red-900/20 border-red-500/40 text-red-300' : 'bg-green-900/20 border-green-500/40 text-green-300'}`}>
+                    <span className="font-bold text-sm">
+                        {brokenIds.length
+                          ? `${brokenIds.length} rider(s) without a working photo — click Edit to fix.`
+                          : 'All photos are working!'}
+                    </span>
+                    <button onClick={() => setBrokenIds(null)} className="text-sm font-bold text-white hover:text-primary whitespace-nowrap">Show all</button>
+                </div>
+            )}
 
             {/* ZOEKBALK */}
             <div className="relative">
