@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import { getLocalDate } from '../utils/date';
 import { saveDailyResult, hasPlayedDate, getScoreForDate, migrateLegacyData } from '../utils/history';
 import { Leaderboard } from './Leaderboard';
+import SwipeGame from './SwipeGame';
 
 // --- HULP COMPONENT: COUNTDOWN TIMER ---
 const CountdownTimer = () => {
@@ -178,15 +179,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     );
   };
 
-  const handleSubmit = async () => {
-    if (selectedIds.length === 0 && !window.confirm("You haven't selected any riders. Submit anyway?")) return;
+  const handleSubmit = async (ids: string[] = selectedIds) => {
+    setSelectedIds(ids);
     const isReplay = hasPlayedDate(activeDate);
     const endTime = Date.now();
     const duration = startTime ? endTime - startTime : 0;
 
     let currentScore = 0;
     activeQuiz.slots.forEach(slot => {
-      const isSelected = selectedIds.includes(slot.cyclistId);
+      const isSelected = ids.includes(slot.cyclistId);
       const correctlyIdentified = (isSelected && !slot.isImposter) || (!isSelected && slot.isImposter);
       if (correctlyIdentified) currentScore++;
     });
@@ -204,7 +205,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     saveDailyResult(activeDate, currentScore);
     
     // SLA DE SELECTIES OP IN LOCALSTORAGE VOOR DE SHARE GRID!
-    localStorage.setItem(`ci_selected_${activeDate}`, JSON.stringify(selectedIds));
+    localStorage.setItem(`ci_selected_${activeDate}`, JSON.stringify(ids));
     
     if (currentScore === 8) {
         createCelebration();
@@ -373,28 +374,11 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             let statusIcon = '';
 
             if (isSubmitted) {
-            if (isImposter) {
-                borderClass = 'ring-4 ring-red-500/50 grayscale';
-                overlayColor = 'bg-red-900/20';
-                statusText = 'IMPOSTER';
-                statusIcon = 'cancel';
-            } else {
-                borderClass = 'ring-4 ring-green-500/50';
-                overlayColor = 'bg-green-900/20';
-                statusText = 'CORRECT';
-                statusIcon = 'check_circle';
-            }
-            if (selectedIds.length > 0) {
-                    if (isCorrect) {
-                    borderClass = 'ring-4 ring-green-500 ring-offset-2 ring-offset-background-dark';
-                    overlayColor = 'bg-green-900/30';
-                    statusText = isImposter ? 'CORRECTLY AVOIDED' : 'CORRECTLY PICKED';
-                } else {
-                    borderClass = 'ring-4 ring-red-500 ring-offset-2 ring-offset-background-dark';
-                    overlayColor = 'bg-red-900/30';
-                    statusText = isImposter ? 'MISSED IMPOSTER' : 'MISSED RIDER';
-                }
-            }
+                // Kleur = juist/fout, label = de waarheid + wat jij zei. Imposters altijd grijs.
+                borderClass = `ring-4 ring-offset-2 ring-offset-background-dark ${isCorrect ? 'ring-green-500' : 'ring-red-500'} ${isImposter ? 'grayscale' : ''}`;
+                overlayColor = isCorrect ? 'bg-green-900/20' : 'bg-red-900/30';
+                statusText = isImposter ? 'IMPOSTER' : 'MATCH';
+                statusIcon = `You said ${isSelected ? 'match' : 'imposter'}`;
             } else if (isSelected) {
             borderClass = 'ring-4 ring-primary ring-offset-2 ring-offset-background-dark shadow-neon';
             }
@@ -411,9 +395,11 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                 {isSubmitted && (
                     <>
                         <div className={`absolute inset-0 z-10 ${overlayColor}`}></div>
-                        <div className={`absolute top-2 left-2 right-2 z-30 flex items-center justify-center gap-1 rounded-full px-2 py-1 text-[10px] sm:text-xs font-bold tracking-wider text-white ${statusText.includes('CORRECT') ? 'bg-green-600/90' : 'bg-red-600/90'}`}>
-                            <span className="material-symbols-outlined text-sm">{statusText.includes('CORRECT') ? 'check_circle' : 'cancel'}</span>
-                            <span className="truncate">{statusText}</span>
+                        <div className={`absolute top-2 left-2 right-2 z-30 flex flex-col items-center rounded-xl px-2 py-1 text-white ${isCorrect ? 'bg-green-600/90' : 'bg-red-600/90'}`}>
+                            <span className="flex items-center gap-1 text-xs sm:text-sm font-black tracking-wider">
+                                <span className="material-symbols-outlined text-sm">{isCorrect ? 'check_circle' : 'cancel'}</span>{statusText}
+                            </span>
+                            <span className="text-[10px] sm:text-xs font-medium opacity-90">{statusIcon}</span>
                         </div>
                     </>
                 )}
@@ -465,19 +451,11 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             <h2 className="mt-2 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
               {activeQuiz.statement}
             </h2>
-            <p className="mt-2 text-base sm:text-lg font-medium text-gray-400">Tap every rider who fits the statement. Leave the imposters out.</p>
+            <p className="mt-2 text-base sm:text-lg font-medium text-gray-400">{isSubmitted ? 'Here is how you did.' : 'Does this rider match the statement?'}</p>
           </div>
 
           {!isSubmitted ? (
-            <>
-                {renderCyclistGrid()}
-                
-                <div className="sticky bottom-6 z-30 mt-8 flex justify-center">
-                    <button onClick={handleSubmit} className="flex items-center gap-2 bg-primary px-10 py-4 rounded-full font-bold text-xl text-background-dark shadow-neon hover:scale-105 transition-transform">
-                        SUBMIT {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} <span className="material-symbols-outlined">arrow_forward</span>
-                    </button>
-                </div>
-            </>
+            <SwipeGame key={activeDate} quiz={activeQuiz} cyclists={activeCyclistList} onComplete={(ids) => handleSubmit(ids)} />
           ) : (
             <div className="w-full flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
                 
