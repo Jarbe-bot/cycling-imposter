@@ -375,7 +375,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
             if (isSubmitted) {
                 // Kleur = juist/fout, label = de waarheid + wat jij zei. Imposters altijd grijs.
-                borderClass = `ring-4 ring-offset-2 ring-offset-background-dark ${isCorrect ? 'ring-green-500' : 'ring-red-500'} ${isImposter ? 'grayscale' : ''}`;
+                borderClass = `ring-4 ring-offset-2 ring-offset-background-dark ${isCorrect ? 'ring-green-500' : 'ring-red-500'}`;
                 overlayColor = isCorrect ? 'bg-green-900/20' : 'bg-red-900/30';
                 statusText = isImposter ? 'IMPOSTER' : 'MATCH';
                 statusIcon = `You said ${isSelected ? 'match' : 'imposter'}`;
@@ -386,7 +386,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             return (
             <div key={cyclist.id} onClick={() => toggleSelect(cyclist.id)} className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-card-dark transition-all hover:-translate-y-1 ${borderClass}`}>
                 <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#0d1c12]">
-                <img src={cyclist.imageUrl} alt={cyclist.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')} />
+                <img src={cyclist.imageUrl} alt={cyclist.name} className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${isSubmitted && isImposter ? 'grayscale' : ''}`} onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600?text=No+Image')} />
                 {!isSubmitted && (
                     <div className={`absolute top-3 right-3 z-20 flex size-8 items-center justify-center rounded-full border-2 transition-all ${isSelected ? 'bg-primary border-primary text-background-dark shadow-neon' : 'border-white/30 bg-black/20 opacity-0 group-hover:opacity-100'}`}>
                     <span className="material-symbols-outlined font-bold text-sm">check</span>
