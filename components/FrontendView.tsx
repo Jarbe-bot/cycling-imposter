@@ -179,6 +179,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   };
 
   const handleSubmit = async () => {
+    if (selectedIds.length === 0 && !window.confirm("You haven't selected any riders. Submit anyway?")) return;
     const isReplay = hasPlayedDate(activeDate);
     const endTime = Date.now();
     const duration = startTime ? endTime - startTime : 0;
@@ -374,23 +375,23 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             if (isSubmitted) {
             if (isImposter) {
                 borderClass = 'ring-4 ring-red-500/50 grayscale';
-                overlayColor = 'bg-red-900/40';
+                overlayColor = 'bg-red-900/20';
                 statusText = 'IMPOSTER';
                 statusIcon = 'cancel';
             } else {
                 borderClass = 'ring-4 ring-green-500/50';
-                overlayColor = 'bg-green-900/40';
+                overlayColor = 'bg-green-900/20';
                 statusText = 'CORRECT';
                 statusIcon = 'check_circle';
             }
             if (selectedIds.length > 0) {
                     if (isCorrect) {
                     borderClass = 'ring-4 ring-green-500 ring-offset-2 ring-offset-background-dark';
-                    overlayColor = 'bg-green-900/60';
+                    overlayColor = 'bg-green-900/30';
                     statusText = isImposter ? 'CORRECTLY AVOIDED' : 'CORRECTLY PICKED';
                 } else {
                     borderClass = 'ring-4 ring-red-500 ring-offset-2 ring-offset-background-dark';
-                    overlayColor = 'bg-red-900/60';
+                    overlayColor = 'bg-red-900/30';
                     statusText = isImposter ? 'MISSED IMPOSTER' : 'MISSED RIDER';
                 }
             }
@@ -408,10 +409,13 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                     </div>
                 )}
                 {isSubmitted && (
-                    <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-300 group-hover:opacity-0 ${overlayColor}`}>
-                        <span className={`material-symbols-outlined text-4xl mb-2 ${statusText.includes('CORRECT') ? 'text-green-400' : 'text-red-400'}`}>{statusIcon}</span>
-                        <span className="font-bold text-sm tracking-widest text-white text-center px-2">{statusText}</span>
-                    </div>
+                    <>
+                        <div className={`absolute inset-0 z-10 ${overlayColor}`}></div>
+                        <div className={`absolute top-2 left-2 right-2 z-30 flex items-center justify-center gap-1 rounded-full px-2 py-1 text-[10px] sm:text-xs font-bold tracking-wider text-white ${statusText.includes('CORRECT') ? 'bg-green-600/90' : 'bg-red-600/90'}`}>
+                            <span className="material-symbols-outlined text-sm">{statusText.includes('CORRECT') ? 'check_circle' : 'cancel'}</span>
+                            <span className="truncate">{statusText}</span>
+                        </div>
+                    </>
                 )}
                 </div>
                 <div className="absolute bottom-0 left-0 z-20 w-full p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
@@ -461,7 +465,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
             <h2 className="mt-2 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
               {activeQuiz.statement}
             </h2>
-            <p className="mt-2 text-lg font-medium text-gray-400">Select the riders that match the statement.</p>
+            <p className="mt-2 text-base sm:text-lg font-medium text-gray-400">Tap every rider who fits the statement. Leave the imposters out.</p>
           </div>
 
           {!isSubmitted ? (
@@ -470,7 +474,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                 
                 <div className="sticky bottom-6 z-30 mt-8 flex justify-center">
                     <button onClick={handleSubmit} className="flex items-center gap-2 bg-primary px-10 py-4 rounded-full font-bold text-xl text-background-dark shadow-neon hover:scale-105 transition-transform">
-                        SUBMIT ANSWERS <span className="material-symbols-outlined">arrow_forward</span>
+                        SUBMIT {selectedIds.length > 0 ? `(${selectedIds.length})` : ''} <span className="material-symbols-outlined">arrow_forward</span>
                     </button>
                 </div>
             </>
@@ -496,42 +500,45 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                 {/* TAB 1: RESULTAAT */}
                 {resultTab === 'result' && (
                     <div className="w-full flex flex-col items-center">
-                        <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden mb-8">
+                        {/* COMPACTE SCORE: score + share in één rij, zodat de antwoorden meteen in beeld komen */}
+                        <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl relative overflow-hidden mb-6">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent"></div>
-                            
-                            <span className="material-symbols-outlined text-6xl text-primary mb-4 block">
-                                {score === 8 ? 'military_tech' : (score >= 4 ? 'thumb_up' : 'sentiment_dissatisfied')}
-                            </span>
-                            
-                            <h3 className="text-4xl font-black text-white mb-2">{score} / 8</h3>
-                            
-                            <p className="text-gray-400 mb-6 font-medium">{getScoreMessage(score)}</p>
-                            
-                            <button onClick={handleShare} className="w-full bg-primary hover:bg-primary-dark text-background-dark font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors mb-6">
-                                <span className="material-symbols-outlined">share</span> Share Result
-                            </button>
-                            {isToday && (
-                                <div className="grid grid-cols-2 gap-4 border-t border-[#22492f] py-6">
-                                    <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p><p className="text-2xl font-bold text-white flex items-center justify-center gap-1">{userStats.streak} <span className="text-orange-500 text-lg">🔥</span></p></div>
-                                    <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p><p className="text-2xl font-bold text-white">{userStats.played}</p></div>
+                            <div className="flex items-center gap-4">
+                                <span className="material-symbols-outlined text-4xl sm:text-5xl text-primary">
+                                    {score === 8 ? 'military_tech' : (score >= 4 ? 'thumb_up' : 'sentiment_dissatisfied')}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-3xl font-black text-white leading-none">{score} / 8</h3>
+                                    <p className="text-gray-400 text-sm font-medium mt-1">{getScoreMessage(score)}</p>
                                 </div>
-                            )}
-                            {!isToday && (
-                                <div className="border-t border-[#22492f] py-6">
-                                    <button onClick={() => loadQuizForDate(getLocalDate())} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
-                                </div>
-                            )}
-                            {isToday && (
-                                <div className="border-t border-[#22492f] pt-4">
-                                    <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Next Challenge In</p>
-                                    <CountdownTimer />
-                                </div>
-                            )}
+                                <button onClick={handleShare} className="bg-primary hover:bg-primary-dark text-background-dark font-bold p-3 sm:px-4 rounded-xl flex items-center gap-2 transition-colors" title="Share Result">
+                                    <span className="material-symbols-outlined">share</span><span className="hidden sm:inline">Share</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="w-full mt-4">
-                            <h3 className="text-2xl font-bold text-white mb-6 text-center">Your Selection</h3>
+                        {/* ANTWOORDEN */}
+                        <div className="w-full">
+                            <h3 className="text-xl font-bold text-white mb-4 text-center">Your Answers</h3>
                             {renderCyclistGrid()}
+                        </div>
+
+                        {/* STATS & VOLGENDE QUIZ */}
+                        <div className="bg-[#1a3322] border border-[#22492f] rounded-2xl p-6 w-full max-w-md text-center mt-8">
+                            {isToday ? (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4 pb-6">
+                                        <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Streak</p><p className="text-2xl font-bold text-white flex items-center justify-center gap-1">{userStats.streak} <span className="text-orange-500 text-lg">🔥</span></p></div>
+                                        <div><p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Total Played</p><p className="text-2xl font-bold text-white">{userStats.played}</p></div>
+                                    </div>
+                                    <div className="border-t border-[#22492f] pt-4">
+                                        <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Next Challenge In</p>
+                                        <CountdownTimer />
+                                    </div>
+                                </>
+                            ) : (
+                                <button onClick={() => loadQuizForDate(getLocalDate())} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
+                            )}
                         </div>
                     </div>
                 )}
