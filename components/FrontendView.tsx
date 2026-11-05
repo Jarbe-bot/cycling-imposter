@@ -441,17 +441,17 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
       )}
 
       <main className="flex grow flex-col items-center w-full pb-40">
-        <div className="flex w-full max-w-[960px] flex-col px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex w-full max-w-[960px] flex-col px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
           
-          <div className="mb-8 flex flex-col items-center justify-center gap-2 text-center">
+          <div className="mb-4 sm:mb-8 flex flex-col items-center justify-center gap-1 sm:gap-2 text-center">
             <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${isToday ? 'border-primary/30 bg-primary/10 text-primary' : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500'}`}>
               <span className="material-symbols-outlined text-[14px]">{isToday ? 'today' : 'history'}</span>
               {isToday ? 'Daily Challenge' : `Archive: ${activeDate}`}
             </div>
-            <h2 className="mt-2 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <h2 className="mt-1 sm:mt-2 max-w-2xl text-2xl font-extrabold leading-snug sm:leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
               {activeQuiz.statement}
             </h2>
-            <p className="mt-2 text-base sm:text-lg font-medium text-gray-400">{isSubmitted ? 'Here is how you did.' : 'Does this rider match the statement?'}</p>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-lg font-medium text-gray-400">{isSubmitted ? 'Here is how you did.' : 'Does this rider match the statement?'}</p>
           </div>
 
           {!isSubmitted ? (
