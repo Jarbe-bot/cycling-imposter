@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Quiz, Cyclist } from '../types';
 import { supabase } from '../supabaseClient';
+import { getLocalDate } from '../utils/date';
 import { INITIAL_QUIZ } from '../constants';
 import html2canvas from 'html2canvas';
 
@@ -15,7 +16,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz, onNavigateToDatabase, onLogout }) => {
   const [localQuiz, setLocalQuiz] = useState<Quiz>(quiz);
   
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDate());
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -652,7 +653,7 @@ const filteredPickerCyclists = cyclists.filter(c => {
                     const onTimePercent = total > 0 ? (stat.onTime / total) * 100 : 0;
                     const latePercent = total > 0 ? (stat.late / total) * 100 : 0;
 
-                    const isToday = stat.date === new Date().toISOString().split('T')[0];
+                    const isToday = stat.date === getLocalDate();
 
                     return (
                         <div key={stat.date} className="flex-1 flex flex-col items-center justify-end group relative h-full">
@@ -720,7 +721,7 @@ const filteredPickerCyclists = cyclists.filter(c => {
                     const day = i + 1;
                     const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day + 1).toISOString().split('T')[0];
                     const isSelected = selectedDate === dateStr;
-                    const isToday = dateStr === new Date().toISOString().split('T')[0];
+                    const isToday = dateStr === getLocalDate();
                     const hasQuiz = quizDates.includes(dateStr);
 
                     return (
