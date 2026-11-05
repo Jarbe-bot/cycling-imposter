@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { getLocalDate } from '../utils/date';
 
 interface LeaderboardProps {
     onOpenArchive?: () => void;
@@ -23,7 +24,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onOpenArchive }) => {
     const fetchLeaderboards = async () => {
         setIsLoading(true);
         if (activeTab === 'daily') {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDate();
             const { data } = await supabase
                 .from('daily_leaderboard')
                 .select('*')
