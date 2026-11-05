@@ -25,6 +25,7 @@ export interface Quiz {
 export interface UserStats {
   played: number;
   streak: number;
+  lastPlayedDate?: string; // laatste dag waarop de dagquiz van die dag gespeeld werd
   history: Record<number, number>; // score -> frequency
 }
 
