@@ -90,7 +90,7 @@ const SwipeGame: React.FC<SwipeGameProps> = ({ quiz, cyclists, onComplete }) => 
 
   const dragStrength = Math.min(Math.abs(dragX) / SWIPE_THRESHOLD, 1);
   const cardTransform = exitDir !== null
-    ? `translateX(${exitDir * 600}px) rotate(${exitDir * 30}deg)`
+    ? `translateX(${exitDir * window.innerWidth}px) rotate(${exitDir * 30}deg)` // tot volledig buiten het scherm
     : `translateX(${dragX}px) rotate(${dragX / 15}deg)`;
 
   const renderCard = (c?: Cyclist) => (
@@ -110,7 +110,7 @@ const SwipeGame: React.FC<SwipeGameProps> = ({ quiz, cyclists, onComplete }) => 
   );
 
   return (
-    <div className="flex w-full flex-col items-center overflow-hidden pb-4">
+    <div className="flex w-full flex-col items-center pb-4">
       {/* Gekleurde rand tijdens het slepen: links rood (imposter), rechts groen (match) */}
       <div className="pointer-events-none fixed inset-y-0 left-0 z-20 w-1/3 bg-gradient-to-r from-red-500/50 to-transparent transition-opacity"
            style={{ opacity: dragX < 0 && !feedback ? dragStrength : 0 }} />
