@@ -415,7 +415,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
   );
 
   return (
-    <div className="flex grow flex-col items-center w-full">
+    <div className="flex grow flex-col items-center w-full overflow-x-clip">
       <header className="sticky top-0 z-40 w-full border-b border-[#22492f] bg-[#102316]/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-[960px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
