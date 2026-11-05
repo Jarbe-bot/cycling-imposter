@@ -130,6 +130,7 @@ const SwipeGame: React.FC<SwipeGameProps> = ({ quiz, cyclists, onComplete }) => 
         )}
         {slot && (
           <div
+            key={slot.cyclistId} // nieuwe renner = nieuw element, dus geen terugschuif-animatie
             className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing"
             style={{
               transform: cardTransform,
