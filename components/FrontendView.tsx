@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Quiz, UserStats, Cyclist } from '../types';
 import { INITIAL_CYCLISTS } from '../constants';
 import { supabase } from '../supabaseClient';
+import { getLocalDate } from '../utils/date';
 import { saveDailyResult, hasPlayedDate, getScoreForDate, migrateLegacyData } from '../utils/history';
 import { Leaderboard } from './Leaderboard';
 
@@ -45,14 +46,14 @@ interface FrontendViewProps {
   quiz: Quiz;
   cyclists: Cyclist[];
   userStats: UserStats;
-  updateStats: (score: number) => void;
+  updateStats: (score: number, quizDate: string) => void;
   onGoAdmin: () => void;
 }
 
 const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists, userStats, updateStats, onGoAdmin }) => {
   // STATE
   const [activeQuiz, setActiveQuiz] = useState<Quiz>(initialQuiz);
-  const [activeDate, setActiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [activeDate, setActiveDate] = useState<string>(getLocalDate());
   
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -127,7 +128,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
 
   const openArchive = async () => {
     setShowArchiveModal(true);
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDate();
 
     const { data } = await supabase
         .from('daily_quizzes')
@@ -193,10 +194,10 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     setIsSubmitted(true);
     setResultTab('result');
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDate();
     
     if (activeDate === today && !isReplay) {
-        updateStats(currentScore);
+        updateStats(currentScore, activeDate);
     }
     
     saveDailyResult(activeDate, currentScore);
@@ -345,7 +346,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
     animation.onfinish = () => div.remove();
   };
 
-  const isToday = activeDate === new Date().toISOString().split('T')[0];
+  const isToday = activeDate === getLocalDate();
 
   const getScoreMessage = (s: number) => {
     if (s === 8) return "Perfect Score! Master of the peloton! 🏆";
@@ -517,7 +518,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                             )}
                             {!isToday && (
                                 <div className="border-t border-[#22492f] py-6">
-                                    <button onClick={() => loadQuizForDate(new Date().toISOString().split('T')[0])} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
+                                    <button onClick={() => loadQuizForDate(getLocalDate())} className="text-primary hover:underline text-sm font-bold">Back to Today's Quiz</button>
                                 </div>
                             )}
                             {isToday && (
@@ -613,7 +614,7 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                         const isPlayed = hasPlayedDate(date);
                         const score = getScoreForDate(date);
                         const isCurrent = date === activeDate;
-                        const isTodayDate = date === new Date().toISOString().split('T')[0];
+                        const isTodayDate = date === getLocalDate();
                         return (
                             <button key={date} onClick={() => loadQuizForDate(date)} className={`w-full p-3 rounded-xl flex items-center justify-between border transition-all ${isCurrent ? 'bg-primary/20 border-primary' : 'bg-[#102316] border-[#22492f] hover:border-primary/50'}`}>
                                 <div className="flex flex-col items-start">
