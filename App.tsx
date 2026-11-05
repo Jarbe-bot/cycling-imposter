@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { Cyclist, Quiz, UserStats } from './types';
 import { INITIAL_CYCLISTS, INITIAL_QUIZ } from './constants';
 import { supabase } from './supabaseClient';
+import { getLocalDate } from './utils/date';
+import { getHistory } from './utils/history';
 import FrontendView from './components/FrontendView';
 import AdminDashboard from './components/AdminDashboard';
 import AdminDatabase from './components/AdminDatabase';
@@ -19,11 +21,23 @@ const AppContent: React.FC = () => {
   // STATS: Laad uit localStorage
   const [userStats, setUserStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('cycling_imposter_stats');
-    return saved ? JSON.parse(saved) : {
+    const stats: UserStats = saved ? JSON.parse(saved) : {
       played: 0,
       streak: 0,
       history: { 8: 0, 7: 0, 6: 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 }
     };
+
+    // Migratie: bestaande spelers hebben nog geen lastPlayedDate -> neem de laatst gespeelde datum uit de geschiedenis
+    if (!stats.lastPlayedDate) {
+      const playedDates = Object.keys(getHistory()).filter(d => d <= getLocalDate()).sort();
+      stats.lastPlayedDate = playedDates[playedDates.length - 1];
+    }
+
+    // Streak is gebroken als de speler gisteren én vandaag niet gespeeld heeft
+    if (stats.lastPlayedDate !== getLocalDate() && stats.lastPlayedDate !== getLocalDate(-1)) {
+      stats.streak = 0;
+    }
+    return stats;
   });
 
   const navigate = useNavigate();
@@ -50,7 +64,7 @@ const AppContent: React.FC = () => {
         }
 
         // STAP 2: Haal de Quiz van VANDAAG op
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDate();
         
         const { data: quizData } = await supabase
             .from('daily_quizzes')
@@ -76,17 +90,19 @@ const AppContent: React.FC = () => {
   };
 
 const updateUserStats = (score: number, quizDate: string) => {
-  const today = new Date().toISOString().split('T')[0];
-  const isToday = quizDate === today;
+  const today = getLocalDate();
+  // Alleen de dagquiz van vandaag telt mee; archief-quizzen laten de stats ongemoeid
+  if (quizDate !== today) return;
 
   setUserStats(prev => {
-    const newStats = {
+    if (prev.lastPlayedDate === today) return prev; // vandaag al geteld
+
+    // Streak = aantal opeenvolgende dagen gespeeld, ongeacht de score
+    const continuesStreak = prev.lastPlayedDate === getLocalDate(-1);
+    const newStats: UserStats = {
       played: prev.played + 1,
-      // De streak past zich ALLEEN aan als het de dag van vandaag is!
-      // Bij een archief-dag blijft je huidige streak exact zoals hij was.
-      streak: isToday 
-        ? (score >= 4 ? prev.streak + 1 : 0) 
-        : prev.streak, 
+      streak: continuesStreak ? prev.streak + 1 : 1,
+      lastPlayedDate: today,
       history: {
         ...prev.history,
         [score]: (prev.history[score] || 0) + 1
