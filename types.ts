@@ -12,6 +12,7 @@ export interface Cyclist {
 export interface QuizSlot {
   cyclistId: string;
   isImposter: boolean;
+  note?: string; // optionele uitleg, getoond na het swipen (later via AI)
 }
 
 export interface Quiz {
