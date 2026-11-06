@@ -24,6 +24,9 @@ RULES FOR STATEMENTS
   number of Grand Tour participations, being a national champion, career facts that are widely documented.
 - Never use smaller races (e.g. Deutschland Tour, Tour of Britain, Tour Down Under, one-day races outside the Monuments).
 - Only use facts you are completely certain about. If you are unsure about a rider, do not use that rider.
+- Statements must be timeless. Never refer to dates, holidays, national days, anniversaries, birthdays, seasons
+  or current events (e.g. no "National holiday of ...!", "Happy birthday ...", "Halloween!"). You do not know on
+  which day the puzzle will be published, so such references are always wrong. Ignore this style in older statements.
 
 WRITING STYLE
 - Write the statement and all notes in sentence case, like a normal English sentence: capitalize only the first word
