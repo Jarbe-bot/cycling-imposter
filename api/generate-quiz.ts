@@ -24,6 +24,12 @@ RULES FOR STATEMENTS
   number of Grand Tour participations, being a national champion, career facts that are widely documented.
 - Never use smaller races (e.g. Deutschland Tour, Tour of Britain, Tour Down Under, one-day races outside the Monuments).
 - Only use facts you are completely certain about. If you are unsure about a rider, do not use that rider.
+
+WRITING STYLE
+- Write the statement and all notes in sentence case, like a normal English sentence: capitalize only the first word
+  and proper nouns (riders, races, teams, countries). Correct: "Won an Olympic gold medal", "Wore the yellow jersey
+  in the Tour de France". Wrong: "Won An Olympic Gold Medal", "Wore The Yellow Jersey".
+- Follow this rule even if some older statements below use more capitals.
 `;
 
 const parseJson = (text: string) => JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -113,6 +119,11 @@ Answer with ONLY this JSON, no other text:
       if (!draft.statement || slots.length !== 8 || unique.size !== 8 || imposters < 1 || imposters > 7) {
         return res.status(422).json({ error: 'AI gaf geen geldige quiz terug, probeer opnieuw.' });
       }
+      // Willekeurige volgorde (Fisher-Yates): het model zet anders vaak alle matches vooraan
+      for (let i = slots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
       return res.status(200).json({
         statement: draft.statement,
         // cyclistId terug in de originele vorm uit de database (tekst of getal)
@@ -133,6 +144,7 @@ The admin marked each rider as MATCH (fits the statement) or IMPOSTER (does not 
 For every rider write a short factual note (max 12 words) explaining why, e.g. "Won in 2011", "Never won; 2nd in 2019".
 If you believe the admin's marking is wrong, set "agrees" to false and explain the correct fact in the note.
 Only state facts you are certain about; if unsure, write an empty note and set "agrees" to true.
+Write notes in sentence case: capitalize only the first word and proper nouns (riders, races, teams, countries).
 
 RIDERS (id | name | marking):
 ${riders}
