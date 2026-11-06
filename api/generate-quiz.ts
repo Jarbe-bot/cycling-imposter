@@ -10,7 +10,10 @@
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+// Hoofdmodel en reservemodel (beide in de gratis tier). Overschrijfbaar via Vercel.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.6-flash';
+const ATTEMPT_TIMEOUT_MS = 80_000; // max 3 pogingen blijven zo onder de 300 s van Vercel
 
 const RULES = `
 RULES FOR STATEMENTS
@@ -25,16 +28,40 @@ RULES FOR STATEMENTS
 
 const parseJson = (text: string) => JSON.parse(text.replace(/```json|```/g, '').trim());
 
-// Probeert eerst met Google Search (betere feiten); valt terug op zonder als het model/de tier dat niet toelaat.
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Eén aanvraag met tijdslimiet, zodat de knop nooit minutenlang blijft hangen
+async function callModel(ai: GoogleGenAI, model: string, prompt: string): Promise<string> {
+  const request = ai.models.generateContent({ model, contents: prompt, config: { responseMimeType: 'application/json' } });
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(Object.assign(new Error('timeout'), { status: 'timeout' })), ATTEMPT_TIMEOUT_MS));
+  const res: any = await Promise.race([request, timeout]);
+  if (!res.text) throw new Error('Leeg antwoord van het model');
+  return res.text;
+}
+
+// Hoofdmodel; bij drukte (503) na een korte pauze nog eens; daarna het reservemodel.
+// (Google Search zit niet in de gratis tier, daarom zonder.)
 async function ask(ai: GoogleGenAI, prompt: string): Promise<string> {
   try {
-    const res = await ai.models.generateContent({ model: MODEL, contents: prompt, config: { tools: [{ googleSearch: {} }] } });
-    if (res.text) return res.text;
-  } catch (e) {
-    console.warn('Search grounding niet beschikbaar, opnieuw zonder:', e);
+    return await callModel(ai, MODEL, prompt);
+  } catch (e: any) {
+    console.warn(`${MODEL} faalde (${e?.status}):`, e?.message);
+    if (e?.status === 503) {
+      await sleep(3000);
+      try {
+        return await callModel(ai, MODEL, prompt);
+      } catch (e2: any) {
+        console.warn(`${MODEL} faalde opnieuw (${e2?.status}):`, e2?.message);
+      }
+    }
   }
-  const res = await ai.models.generateContent({ model: MODEL, contents: prompt, config: { responseMimeType: 'application/json' } });
-  return res.text || '';
+  try {
+    return await callModel(ai, FALLBACK_MODEL, prompt);
+  } catch (e: any) {
+    console.error(`${FALLBACK_MODEL} faalde ook (${e?.status}):`, e?.message);
+    throw new Error('Gemini is momenteel te druk of het gratis quotum is op. Probeer het over enkele minuten opnieuw.');
+  }
 }
 
 export default async function handler(req: any, res: any) {
