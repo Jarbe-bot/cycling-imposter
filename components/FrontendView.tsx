@@ -403,11 +403,15 @@ const FrontendView: React.FC<FrontendViewProps> = ({ quiz: initialQuiz, cyclists
                         </div>
                     </>
                 )}
-                </div>
+                {/* Naam blijft op de foto staan, ook als er een uitleg onder komt */}
                 <div className="absolute bottom-0 left-0 z-20 w-full p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
                 <p className="text-base font-bold leading-tight text-white">{cyclist.name}</p>
                 <p className="text-xs text-gray-400">{cyclist.team}</p>
                 </div>
+                </div>
+                {isSubmitted && slot.note && (
+                    <p className="px-3 py-2 text-xs leading-snug text-gray-300 bg-[#0d1c12]">{slot.note}</p>
+                )}
             </div>
             );
         })}

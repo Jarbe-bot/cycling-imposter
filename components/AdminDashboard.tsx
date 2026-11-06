@@ -32,6 +32,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const [showMoveModal, setShowMoveModal] = useState(false); 
+
+  // AI
+  const [aiTheme, setAiTheme] = useState('');
+  const [aiBusy, setAiBusy] = useState<null | 'create' | 'explain'>(null);
   const [moveTargetDate, setMoveTargetDate] = useState('');
   
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +292,63 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
+  const callAi = async (payload: any) => {
+    const response = await fetch('/api/generate-quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  };
+
+  // Volledige quiz als concept invullen (wordt NIET opgeslagen tot je op Save klikt)
+  const handleGenerateQuiz = async () => {
+    if (localQuiz.statement && !confirm('Dit overschrijft de huidige stelling en renners in de editor. Doorgaan?')) return;
+    setAiBusy('create');
+    try {
+      const draft = await callAi({ mode: 'create', theme: aiTheme.trim() || undefined });
+      setLocalQuiz(prev => ({ ...prev, statement: draft.statement, slots: draft.slots }));
+      alert('Concept klaar! Kijk de antwoorden en uitleg na en klik daarna op opslaan.');
+    } catch (e: any) {
+      alert('AI-fout: ' + e.message);
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  // Uitleg genereren voor de huidige (eventueel manueel gemaakte) quiz
+  const handleGenerateNotes = async () => {
+    if (!localQuiz.statement) return alert('Vul eerst een stelling in.');
+    setAiBusy('explain');
+    try {
+      const { notes } = await callAi({ mode: 'explain', statement: localQuiz.statement, slots: localQuiz.slots });
+      const find = (id: string) => notes.find((n: any) => String(n.cyclistId) === String(id));
+      setLocalQuiz(prev => ({
+        ...prev,
+        slots: prev.slots.map(sl => ({ ...sl, note: find(sl.cyclistId)?.note ?? sl.note ?? '' })),
+      }));
+      const doubts = notes.filter((n: any) => n.agrees === false)
+        .map((n: any) => `• ${cyclists.find(c => String(c.id) === String(n.cyclistId))?.name || n.cyclistId}: ${n.note}`);
+      alert(doubts.length
+        ? `Uitleg ingevuld. ⚠️ De AI twijfelt aan je antwoord bij:\n${doubts.join('\n')}`
+        : 'Uitleg ingevuld. Kijk ze even na en klik daarna op opslaan.');
+    } catch (e: any) {
+      alert('AI-fout: ' + e.message);
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const changeNote = (idx: number, note: string) => {
+    setLocalQuiz(prev => {
+      const newSlots = [...prev.slots];
+      newSlots[idx] = { ...newSlots[idx], note };
+      return { ...prev, slots: newSlots };
+    });
+  };
+
   const handleStatementChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setLocalQuiz(prev => ({ ...prev, statement: e.target.value }));
   };
@@ -302,7 +363,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
   const changeCyclistInSlot = (slotIndex: number, newCyclistId: string) => {
     setLocalQuiz(prev => {
       const newSlots = [...prev.slots];
-      newSlots[slotIndex] = { ...newSlots[slotIndex], cyclistId: newCyclistId, isImposter: false };
+      newSlots[slotIndex] = { ...newSlots[slotIndex], cyclistId: newCyclistId, isImposter: false, note: '' };
       return { ...prev, slots: newSlots };
     });
     setShowPicker(null);
@@ -761,7 +822,27 @@ const filteredPickerCyclists = cyclists.filter(c => {
                 onChange={handleStatementChange}
               />
 
-              <div className="pt-6 border-t border-border-dark flex justify-end">
+              {/* AI-HULP */}
+              <div className="mt-4 flex flex-col md:flex-row gap-3">
+                <input
+                    className="flex-1 bg-input-dark text-white text-sm p-3 rounded-lg border-none focus:ring-2 focus:ring-primary"
+                    placeholder="Optional theme for AI (e.g. Belgians, Paris-Roubaix, Giro)..."
+                    value={aiTheme}
+                    onChange={e => setAiTheme(e.target.value)}
+                />
+                <button onClick={handleGenerateQuiz} disabled={!!aiBusy}
+                    className="flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-bold hover:bg-primary/20 transition-all disabled:opacity-50">
+                    <span className="material-symbols-outlined text-base">auto_awesome</span>
+                    {aiBusy === 'create' ? 'GENERATING...' : 'GENERATE QUIZ'}
+                </button>
+                <button onClick={handleGenerateNotes} disabled={!!aiBusy}
+                    className="flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-bold hover:bg-blue-500/20 transition-all disabled:opacity-50">
+                    <span className="material-symbols-outlined text-base">lightbulb</span>
+                    {aiBusy === 'explain' ? 'WRITING...' : 'GENERATE EXPLANATIONS'}
+                </button>
+              </div>
+
+              <div className="pt-6 mt-4 border-t border-border-dark flex justify-end">
                 <button 
                     id="download-share-btn"
                     onClick={downloadShareImage}
@@ -800,6 +881,13 @@ const filteredPickerCyclists = cyclists.filter(c => {
                         <p className="text-white font-bold truncate">{cyclist.name}</p>
                         <p className="text-xs text-text-muted truncate">{cyclist.team}</p>
                     </div>
+                    <textarea
+                        className="w-full resize-none bg-input-dark text-white text-xs p-2 rounded-lg border-none focus:ring-2 focus:ring-primary placeholder:text-text-muted/50"
+                        rows={2}
+                        placeholder="Explanation (optional), e.g. Won in 2011"
+                        value={slot.note || ''}
+                        onChange={e => changeNote(idx, e.target.value)}
+                    />
                     <div className="pt-2 border-t border-border-dark">
                     <div onClick={() => toggleSlotImposter(cyclist.id)} className={`cursor-pointer p-2 rounded-lg flex items-center justify-between transition-colors ${slot.isImposter ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
                         <span className="text-xs font-bold uppercase">{slot.isImposter ? 'Imposter' : 'Correct'}</span>
