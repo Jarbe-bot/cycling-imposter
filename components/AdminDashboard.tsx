@@ -5,6 +5,9 @@ import { getLocalDate } from '../utils/date';
 import { INITIAL_QUIZ } from '../constants';
 import html2canvas from 'html2canvas';
 
+type ImportRider = { cyclistId: string; name: string; isImposter: boolean; note: string; source: string };
+type ImportQuiz = { date: string; statement: string; riders: ImportRider[]; errors: string[] };
+
 interface AdminDashboardProps {
   quiz: Quiz;
   cyclists: Cyclist[];
@@ -33,9 +36,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
 
   const [showMoveModal, setShowMoveModal] = useState(false); 
 
-  // AI
-  const [aiTheme, setAiTheme] = useState('');
-  const [aiBusy, setAiBusy] = useState<null | 'create' | 'explain'>(null);
+  // Import van quizzes die in Gemini/Claude gemaakt zijn
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importPreview, setImportPreview] = useState<ImportQuiz[] | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const [moveTargetDate, setMoveTargetDate] = useState('');
   
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -292,52 +297,137 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quiz, cyclists, setQuiz
     }
   };
 
-  const callAi = async (payload: any) => {
-    const response = await fetch('/api/generate-quiz', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-    return data;
+  // ---------- EXPORT / IMPORT: het denkwerk gebeurt in Gemini of Claude, niet op de site ----------
+
+  // Namen vergelijkbaar maken: Pogačar = Pogacar, Søren = Soren, hoofdletters/spaties/koppeltekens negeren
+  const normalizeName = (s: string) => s.toLowerCase()
+    .replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/ß/g, 'ss').replace(/đ/g, 'd').replace(/ł/g, 'l')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+  const downloadText = (filename: string, text: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
-  // Volledige quiz als concept invullen (wordt NIET opgeslagen tot je op Save klikt)
-  const handleGenerateQuiz = async () => {
-    if (localQuiz.statement && !confirm('Dit overschrijft de huidige stelling en renners in de editor. Doorgaan?')) return;
-    setAiBusy('create');
+  // Bestand voor de Gem/het Project: renners, recente stellingen en bezette datums
+  const handleExportRiders = async () => {
+    const { data: recent } = await supabase
+      .from('daily_quizzes').select('date, statement').order('date', { ascending: false }).limit(60);
+    const lines = [
+      '# Cycling Imposter - data for quiz creation',
+      `Exported: ${getLocalDate()}`,
+      '',
+      '## Riders (id;name;country;team;status)',
+      ...cyclists.map(c => [c.id, c.name, c.country, c.team, c.status].join(';')),
+      '',
+      '## Recent statements (do not repeat)',
+      ...(recent || []).map((r: any) => `- ${r.date}: ${r.statement}`),
+      '',
+      '## Dates that already have a quiz (do not use)',
+      [...quizDates].sort().join(', '),
+    ];
+    downloadText(`cycling-imposter-data-${getLocalDate()}.txt`, lines.join('\n'));
+  };
+
+  // Geplakte tekst omzetten en controleren
+  const parseImport = (text: string): ImportQuiz[] => {
+    const start = text.search(/[\[{]/);
+    const end = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'));
+    if (start < 0 || end < start) throw new Error('Geen JSON gevonden in de tekst.');
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    const list: any[] = Array.isArray(parsed) ? parsed : (parsed.quizzes || [parsed]);
+    const seenDates = new Set<string>();
+
+    return list.map((q: any) => {
+      const errors: string[] = [];
+      const date = String(q.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`Ongeldige datum "${date}"`);
+      else if (quizDates.includes(date)) errors.push(`Op ${date} staat al een quiz`);
+      else if (seenDates.has(date)) errors.push(`Datum ${date} komt twee keer voor`);
+      seenDates.add(date);
+
+      const statement = String(q.statement || '').trim();
+      if (!statement) errors.push('Stelling ontbreekt');
+
+      const riders: ImportRider[] = (q.riders || []).map((r: any) => {
+        const wanted = normalizeName(String(r.name || ''));
+        let c = cyclists.find(x => String(x.id) === String(r.id));
+        if (c && wanted && normalizeName(c.name) !== wanted) {
+          errors.push(`ID ${r.id} hoort bij ${c.name}, niet bij ${r.name}`);
+        }
+        if (!c) {
+          // Terugvallen op de naam als het ID niet klopt
+          const byName = cyclists.filter(x => normalizeName(x.name) === wanted);
+          if (byName.length === 1) c = byName[0];
+          else errors.push(`Renner niet gevonden: ${r.name} (id ${r.id})`);
+        }
+        if (typeof r.match !== 'boolean') errors.push(`"match" ontbreekt bij ${r.name}`);
+        return {
+          cyclistId: c ? c.id : '',
+          name: c ? c.name : String(r.name || '?'),
+          isImposter: r.match === false,
+          note: String(r.note || ''),
+          source: String(r.source || ''),
+        };
+      });
+
+      if (riders.length !== 8) errors.push(`${riders.length} renners in plaats van 8`);
+      if (new Set(riders.map(r => r.cyclistId)).size !== riders.length) errors.push('Dezelfde renner staat er dubbel in');
+      const imposters = riders.filter(r => r.isImposter).length;
+      if (imposters < 1 || imposters > 7) errors.push(`${imposters} imposters (moet tussen 1 en 7 liggen)`);
+
+      return { date, statement, riders, errors };
+    });
+  };
+
+  const handleCheckImport = () => {
     try {
-      const draft = await callAi({ mode: 'create', theme: aiTheme.trim() || undefined });
-      setLocalQuiz(prev => ({ ...prev, statement: draft.statement, slots: draft.slots }));
-      alert('Concept klaar! Kijk de antwoorden en uitleg na en klik daarna op opslaan.');
+      setImportPreview(parseImport(importText));
     } catch (e: any) {
-      alert('AI-fout: ' + e.message);
-    } finally {
-      setAiBusy(null);
+      alert('Kon de tekst niet lezen: ' + e.message);
     }
   };
 
-  // Uitleg genereren voor de huidige (eventueel manueel gemaakte) quiz
-  const handleGenerateNotes = async () => {
-    if (!localQuiz.statement) return alert('Vul eerst een stelling in.');
-    setAiBusy('explain');
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setImportText(await file.text());
+  };
+
+  const shuffle = <T,>(arr: T[]): T[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  // Enkel geldige quizzes opslaan; bestaande datums worden nooit overschreven (insert, geen upsert)
+  const handleConfirmImport = async () => {
+    const valid = (importPreview || []).filter(q => q.errors.length === 0);
+    if (!valid.length) return;
+    setIsImporting(true);
     try {
-      const { notes } = await callAi({ mode: 'explain', statement: localQuiz.statement, slots: localQuiz.slots });
-      const find = (id: string) => notes.find((n: any) => String(n.cyclistId) === String(id));
-      setLocalQuiz(prev => ({
-        ...prev,
-        slots: prev.slots.map(sl => ({ ...sl, note: find(sl.cyclistId)?.note ?? sl.note ?? '' })),
+      const rows = valid.map(q => ({
+        date: q.date,
+        statement: q.statement,
+        slots: shuffle(q.riders.map(r => ({ cyclistId: r.cyclistId, isImposter: r.isImposter, note: r.note }))),
       }));
-      const doubts = notes.filter((n: any) => n.agrees === false)
-        .map((n: any) => `• ${cyclists.find(c => String(c.id) === String(n.cyclistId))?.name || n.cyclistId}: ${n.note}`);
-      alert(doubts.length
-        ? `Uitleg ingevuld. ⚠️ De AI twijfelt aan je antwoord bij:\n${doubts.join('\n')}`
-        : 'Uitleg ingevuld. Kijk ze even na en klik daarna op opslaan.');
+      const { error } = await supabase.from('daily_quizzes').insert(rows);
+      if (error) throw error;
+      setQuizDates(prev => [...prev, ...rows.map(r => r.date)]);
+      alert(`${rows.length} quiz(zes) geïmporteerd. Kijk ze na via de kalender.`);
+      setShowImport(false);
+      setImportText('');
+      setImportPreview(null);
     } catch (e: any) {
-      alert('AI-fout: ' + e.message);
+      alert('Fout bij importeren: ' + e.message);
     } finally {
-      setAiBusy(null);
+      setIsImporting(false);
     }
   };
 
@@ -822,23 +912,15 @@ const filteredPickerCyclists = cyclists.filter(c => {
                 onChange={handleStatementChange}
               />
 
-              {/* AI-HULP */}
+              {/* QUIZZES UIT GEMINI/CLAUDE */}
               <div className="mt-4 flex flex-col md:flex-row gap-3">
-                <input
-                    className="flex-1 bg-input-dark text-white text-sm p-3 rounded-lg border-none focus:ring-2 focus:ring-primary"
-                    placeholder="Optional theme for AI (e.g. Belgians, Paris-Roubaix, Giro)..."
-                    value={aiTheme}
-                    onChange={e => setAiTheme(e.target.value)}
-                />
-                <button onClick={handleGenerateQuiz} disabled={!!aiBusy}
-                    className="flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-bold hover:bg-primary/20 transition-all disabled:opacity-50">
-                    <span className="material-symbols-outlined text-base">auto_awesome</span>
-                    {aiBusy === 'create' ? 'GENERATING...' : 'GENERATE QUIZ'}
+                <button onClick={handleExportRiders}
+                    className="flex-1 flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-bold hover:bg-blue-500/20 transition-all">
+                    <span className="material-symbols-outlined text-base">download</span> EXPORT RIDERS
                 </button>
-                <button onClick={handleGenerateNotes} disabled={!!aiBusy}
-                    className="flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-bold hover:bg-blue-500/20 transition-all disabled:opacity-50">
-                    <span className="material-symbols-outlined text-base">lightbulb</span>
-                    {aiBusy === 'explain' ? 'WRITING...' : 'GENERATE EXPLANATIONS'}
+                <button onClick={() => setShowImport(true)}
+                    className="flex-1 flex justify-center items-center gap-2 px-4 py-3 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-bold hover:bg-primary/20 transition-all">
+                    <span className="material-symbols-outlined text-base">upload</span> IMPORT QUIZZES
                 </button>
               </div>
 
@@ -918,6 +1000,62 @@ const filteredPickerCyclists = cyclists.filter(c => {
       </main>
 
       {/* --- MODAL VOOR VERPLAATSEN --- */}
+      {/* IMPORT-VENSTER */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#0d1c12] border border-border-dark rounded-2xl p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Import quizzes</h3>
+              <button onClick={() => { setShowImport(false); setImportPreview(null); }} className="text-gray-400 hover:text-white">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-400">Plak hier het antwoord van Gemini of Claude, of kies het bestand dat je kreeg.</p>
+            <textarea
+              className="w-full h-40 bg-input-dark text-white text-xs font-mono p-3 rounded-lg border-none focus:ring-2 focus:ring-primary"
+              value={importText}
+              onChange={e => { setImportText(e.target.value); setImportPreview(null); }}
+              placeholder='{"quizzes": [ ... ]}'
+            />
+            <div className="flex flex-col md:flex-row gap-3">
+              <input type="file" accept=".json,.txt,.md" onChange={handleImportFile} className="text-sm text-gray-400 flex-1" />
+              <button onClick={handleCheckImport} disabled={!importText.trim()}
+                className="px-4 py-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-bold disabled:opacity-50">
+                CHECK
+              </button>
+            </div>
+
+            {importPreview && (
+              <div className="flex flex-col gap-3">
+                {importPreview.map((q, qi) => (
+                  <div key={qi} className={`rounded-xl border p-4 ${q.errors.length ? 'border-red-500/50 bg-red-900/10' : 'border-border-dark bg-card-dark'}`}>
+                    <p className="text-xs font-bold text-gray-400">{q.date}</p>
+                    <p className="font-bold text-white mb-2">{q.statement}</p>
+                    {q.errors.length > 0 && (
+                      <ul className="mb-2 text-sm text-red-400 list-disc pl-5">{q.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
+                    )}
+                    <ul className="flex flex-col gap-1">
+                      {q.riders.map((r, ri) => (
+                        <li key={ri} className="text-sm text-gray-300">
+                          <span className={r.isImposter ? 'text-red-400 font-bold' : 'text-green-400 font-bold'}>{r.isImposter ? 'IMPOSTER' : 'MATCH'}</span>
+                          {' '}{r.name}{r.note && <span className="text-gray-400"> – {r.note}</span>}
+                          {r.source && <a href={r.source} target="_blank" rel="noreferrer" className="ml-2 text-blue-400 underline">bron</a>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                <button onClick={handleConfirmImport} disabled={isImporting || !importPreview.some(q => !q.errors.length)}
+                  className="px-4 py-3 rounded-lg bg-primary text-background-dark font-bold disabled:opacity-50">
+                  {isImporting ? 'IMPORTING...' : `IMPORT ${importPreview.filter(q => !q.errors.length).length} VALID QUIZ(ZES)`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showMoveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-surface-dark border border-white/10 p-6 rounded-2xl w-full max-w-md shadow-2xl">
